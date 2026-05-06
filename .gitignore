@@ -1,0 +1,58 @@
+### Maven ###
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.jar
+
+### Spring Boot ###
+*.log
+*.log.*
+logs/
+HELP.md
+
+### IDE - IntelliJ ###
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+
+### IDE - VS Code ###
+.vscode/
+.history/
+
+### IDE - Eclipse ###
+.classpath
+.project
+.settings/
+.springBeans
+
+### OS ###
+.DS_Store
+Thumbs.db
+
+### Storage / Runtime ###
+storage/
+tmp/
+*.pid
+
+### Env / segredos locais ###
+.env
+.env.local
+*.env.local
+src/main/resources/application-local.properties
+
+### Java ###
+*.class
+hs_err_pid*
+
+### Testes / cobertura ###
+.coverage
+coverage/
+jacoco.exec
