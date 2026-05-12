@@ -54,11 +54,17 @@ public class AuthServiceImpl implements AuthService {
             throw new BusinessException("E-mail já cadastrado", HttpStatus.CONFLICT, ErrorCode.VALIDATION_ERROR);
         }
 
-        Company tenant = companyRepository.save(Company.builder()
-                .id(UUID.randomUUID())
-                .name(request.companyName())
-                .active(true)
-                .build());
+        Company tenant;
+
+        if (!companyRepository.existsByName(request.companyName())) {
+            tenant = companyRepository.save(Company.builder()
+                    .id(UUID.randomUUID())
+                    .name(request.companyName())
+                    .active(true)
+                    .build());
+        } else {
+            tenant = companyRepository.findByName(request.companyName());
+        }
 
         User user = userRepository.save(User.builder()
                 .id(UUID.randomUUID())
@@ -71,6 +77,33 @@ public class AuthServiceImpl implements AuthService {
                 .build());
 
         log.info("Cadastro: tenant={} ({}), user={} ({})",
+                tenant.getName(), tenant.getId(), user.getEmail(), user.getId());
+        return buildAuthResponse(user);
+    }
+
+    @Override
+    public AuthResponse registerAnalyst(RegisterRequest request) {
+        if (userRepository.existsByEmail(request.email())) {
+            throw new BusinessException("E-mail já cadastrado", HttpStatus.CONFLICT, ErrorCode.VALIDATION_ERROR);
+        }
+
+        if (!companyRepository.existsByName(request.companyName())) {
+            throw new BusinessException("Empresa não cadastrada", HttpStatus.NOT_FOUND, ErrorCode.VALIDATION_ERROR);
+        }
+
+        Company tenant = companyRepository.findByName(request.companyName());
+
+        User user = userRepository.save(User.builder()
+                .id(UUID.randomUUID())
+                .tenant(tenant)
+                .fullName(request.fullName())
+                .email(request.email())
+                .passwordHash(passwordEncoder.encode(request.password()))
+                .role(Role.ANALYST)
+                .active(true)
+                .build());
+
+        log.info("Login: tenant={} ({}), user={} ({})",
                 tenant.getName(), tenant.getId(), user.getEmail(), user.getId());
         return buildAuthResponse(user);
     }
