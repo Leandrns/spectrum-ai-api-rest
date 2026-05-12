@@ -11,5 +11,7 @@ public interface AuthService {
 
     AuthResponse register(RegisterRequest request);
 
+    AuthResponse registerAnalyst(RegisterRequest request);
+
     RefreshResponse refresh(String refreshToken);
 }

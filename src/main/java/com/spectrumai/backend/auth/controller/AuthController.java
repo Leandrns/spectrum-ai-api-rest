@@ -32,6 +32,11 @@ public class AuthController {
         return authService.register(request);
     }
 
+    @PostMapping("/registerAnalyst")
+    public AuthResponse registerAnalyst(@Valid @RequestBody RegisterRequest request) {
+        return authService.registerAnalyst(request);
+    }
+
     @PostMapping("/refresh")
     public RefreshResponse refresh(@Valid @RequestBody RefreshRequest request) {
         return authService.refresh(request.refreshToken());
