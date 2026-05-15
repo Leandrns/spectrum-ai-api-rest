@@ -1,6 +1,7 @@
 package com.spectrumai.backend.common.exception;
 
 import com.spectrumai.backend.common.dto.ApiError;
+import com.spectrumai.backend.vehicles.fipe.service.ImportCancelledException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
@@ -18,6 +19,17 @@ import java.util.List;
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(ImportCancelledException.class)
+    public ResponseEntity<ApiError> handleImportCancelled(ImportCancelledException ex, HttpServletRequest request) {
+        return ResponseEntity.status(HttpStatus.ACCEPTED).body(new ApiError(
+                HttpStatus.ACCEPTED.value(),
+                "IMPORT_CANCELLED",
+                ex.getMessage(),
+                OffsetDateTime.now(),
+                request.getRequestURI()
+        ));
+    }
 
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ApiError> handleBusiness(BusinessException ex, HttpServletRequest request) {
