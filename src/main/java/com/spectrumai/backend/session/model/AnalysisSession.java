@@ -1,6 +1,7 @@
 package com.spectrumai.backend.session.model;
 
 import com.spectrumai.backend.company.model.Company;
+import com.spectrumai.backend.tenant.TenantAware;
 import com.spectrumai.backend.user.model.User;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -27,7 +28,7 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class AnalysisSession {
+public class AnalysisSession implements TenantAware {
 
     @Id
     @Column(columnDefinition = "uuid")
@@ -56,4 +57,9 @@ public class AnalysisSession {
     @UpdateTimestamp
     @Column(name = "updated_at")
     private OffsetDateTime updatedAt;
+
+    @Override
+    public UUID getTenantId() {
+        return tenant == null ? null : tenant.getId();
+    }
 }

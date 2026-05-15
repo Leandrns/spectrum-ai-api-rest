@@ -2,6 +2,7 @@ package com.spectrumai.backend.search.model;
 
 import com.spectrumai.backend.company.model.Company;
 import com.spectrumai.backend.session.model.AnalysisSession;
+import com.spectrumai.backend.tenant.TenantAware;
 import com.spectrumai.backend.user.model.User;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -33,7 +34,7 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class Search {
+public class Search implements TenantAware {
 
     @Id
     @Column(columnDefinition = "uuid")
@@ -99,4 +100,9 @@ public class Search {
 
     @Column(name = "completed_at")
     private OffsetDateTime completedAt;
+
+    @Override
+    public UUID getTenantId() {
+        return tenant == null ? null : tenant.getId();
+    }
 }
