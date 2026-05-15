@@ -28,6 +28,9 @@ services:
       JWT_EXPIRATION_MS: ${JWT_EXPIRATION_MS:-3600000}
       JWT_REFRESH_EXPIRATION_MS: ${JWT_REFRESH_EXPIRATION_MS:-604800000}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      FIPE_API_TOKEN: ${FIPE_API_TOKEN:-}
+      FIPE_API_BASE_URL: ${FIPE_API_BASE_URL:-https://fipe.parallelum.com.br/api/v2}
+      FIPE_VEHICLE_TYPE: ${FIPE_VEHICLE_TYPE:-cars}
     depends_on:
       postgres:
         condition: service_healthy
