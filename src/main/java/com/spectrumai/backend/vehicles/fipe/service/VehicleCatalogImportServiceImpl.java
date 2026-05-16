@@ -90,6 +90,9 @@ public class VehicleCatalogImportServiceImpl implements VehicleCatalogImportServ
             int failures = 0;
             int fallbackYear = currentYearFallback();
 
+            boolean filterSegments = properties.fipe().filterSegments();
+            int minYear = properties.fipe().minYear();
+
             for (FipeBrand brand : brands) {
                 if (cancelRequested.get()) {
                     log.warn("Import FIPE cancelado após {} marcas processadas. Rollback será aplicado.", modelsProcessed);
@@ -107,11 +110,16 @@ public class VehicleCatalogImportServiceImpl implements VehicleCatalogImportServ
                 }
                 throttle();
 
+                int acceptedForBrand = 0;
+                int skippedBySegment = 0;
+                int skippedByYear = 0;
+
                 for (FipeModel model : models) {
-                    if (properties.fipe().filterSegments() && !segmentFilter.isIncluded(model.name())) {
+                    if (filterSegments && !segmentFilter.isIncluded(model.name())) {
+                        skippedBySegment++;
                         continue;
                     }
-                    modelsProcessed++;
+
                     List<FipeYear> years;
                     try {
                         years = fipeClient.listYears(brand.code(), model.code());
@@ -124,16 +132,22 @@ public class VehicleCatalogImportServiceImpl implements VehicleCatalogImportServ
                     throttle();
 
                     int[] range = extractYearRange(years, fallbackYear);
-                    if (range == null) {
+                    if (range == null || range[1] < minYear) {
+                        skippedByYear++;
                         continue;
                     }
 
-                    buffer.add(toEntry(brand.name(), model.name(), range[0], range[1]));
+                    modelsProcessed++;
+                    acceptedForBrand++;
+                    VehicleSegmentFilter.ModelTrimSplit split = segmentFilter.split(model.name());
+                    buffer.add(toEntry(brand.name(), split.model(), split.trim(), range[0], range[1]));
                     if (buffer.size() >= BATCH_SIZE) {
                         inserted += flush(buffer);
                     }
                 }
-                log.info("Marca '{}' processada ({} modelos acumulados)", brand.name(), modelsProcessed);
+
+                log.info("Marca '{}' — {} aceitos, {} ignorados (segmento), {} ignorados (ano < {})",
+                        brand.name(), acceptedForBrand, skippedBySegment, skippedByYear, minYear);
             }
 
             if (!buffer.isEmpty()) {
@@ -183,12 +197,12 @@ public class VehicleCatalogImportServiceImpl implements VehicleCatalogImportServ
         return size;
     }
 
-    private VehicleCatalogEntry toEntry(String brand, String modelName, int yearFrom, int yearTo) {
+    private VehicleCatalogEntry toEntry(String brand, String model, String trim, int yearFrom, int yearTo) {
         return VehicleCatalogEntry.builder()
                 .id(UUID.randomUUID())
                 .brand(truncate(brand, 100))
-                .model(truncate(modelName, 100))
-                .trim(null)
+                .model(truncate(model, 100))
+                .trim(truncate(trim, 100))
                 .yearFrom((short) yearFrom)
                 .yearTo((short) yearTo)
                 .build();
