@@ -13,5 +13,5 @@ public record AppProperties(Ai ai, Fipe fipe) {
      * Configuração da API FIPE (https://fipe.online/docs/api/fipe), utilizada
      * exclusivamente para popular o catálogo de veículos.
      */
-    public record Fipe(String baseUrl, String apiToken, String vehicleType, int timeoutSeconds, int requestDelayMs, boolean filterSegments) {}
+    public record Fipe(String baseUrl, String apiToken, String vehicleType, int timeoutSeconds, int requestDelayMs, boolean filterSegments, int minYear) {}
 }
