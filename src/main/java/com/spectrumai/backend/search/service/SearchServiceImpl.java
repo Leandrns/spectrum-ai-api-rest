@@ -6,6 +6,7 @@ import com.spectrumai.backend.company.model.Company;
 import com.spectrumai.backend.company.repository.CompanyRepository;
 import com.spectrumai.backend.search.dto.SearchEnqueuedResponse;
 import com.spectrumai.backend.search.dto.SearchExportResponse;
+import com.spectrumai.backend.search.dto.SearchProgressEvent;
 import com.spectrumai.backend.search.dto.SearchRequest;
 import com.spectrumai.backend.search.dto.SearchResultResponse;
 import com.spectrumai.backend.search.dto.SearchSummary;
@@ -46,6 +47,7 @@ public class SearchServiceImpl implements SearchService {
     private final CompanyRepository companyRepository;
     private final UserRepository userRepository;
     private final SearchProcessor searchProcessor;
+    private final SearchStreamService streamService;
 
     @Override
     public SearchEnqueuedResponse enqueue(SearchRequest request) {
@@ -88,6 +90,7 @@ public class SearchServiceImpl implements SearchService {
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCommit() {
+                streamService.publish(SearchProgressEvent.queued(searchId));
                 searchProcessor.process(searchId, tenantId);
             }
         });

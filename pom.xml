@@ -100,6 +100,12 @@
             <version>1.0.0</version>
         </dependency>
 
+        <!-- Reactor (para Flux<ServerSentEvent> no endpoint SSE) -->
+        <dependency>
+            <groupId>io.projectreactor</groupId>
+            <artifactId>reactor-core</artifactId>
+        </dependency>
+
         <!-- Lombok -->
         <dependency>
             <groupId>org.projectlombok</groupId>
