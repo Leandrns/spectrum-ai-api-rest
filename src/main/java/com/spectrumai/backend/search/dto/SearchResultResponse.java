@@ -1,6 +1,6 @@
 package com.spectrumai.backend.search.dto;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.annotation.JsonRawValue;
 import com.spectrumai.backend.search.model.SearchStatus;
 
 import java.math.BigDecimal;
@@ -13,6 +13,7 @@ public record SearchResultResponse(
         VehicleSummary vehicle,
         SearchStatus status,
         OffsetDateTime completedAt,
-        JsonNode specs,
-        BigDecimal overallConfidence
+        @JsonRawValue String specs,
+        BigDecimal overallConfidence,
+        Long aiLatencyMs
 ) {}

@@ -1,11 +1,6 @@
 package com.spectrumai.backend.search.service;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.spectrumai.backend.auth.security.SecurityUtil;
-import com.spectrumai.backend.common.exception.BusinessException;
-import com.spectrumai.backend.common.exception.ErrorCode;
 import com.spectrumai.backend.common.exception.ResourceNotFoundException;
 import com.spectrumai.backend.company.model.Company;
 import com.spectrumai.backend.company.repository.CompanyRepository;
@@ -30,6 +25,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.Duration;
 import java.time.OffsetDateTime;
@@ -48,7 +45,7 @@ public class SearchServiceImpl implements SearchService {
     private final AnalysisSessionRepository sessionRepository;
     private final CompanyRepository companyRepository;
     private final UserRepository userRepository;
-    private final ObjectMapper objectMapper;
+    private final SearchProcessor searchProcessor;
 
     @Override
     public SearchEnqueuedResponse enqueue(SearchRequest request) {
@@ -85,6 +82,16 @@ public class SearchServiceImpl implements SearchService {
         log.info("Pesquisa enfileirada: id={} tenant={} brand={} model={}",
                 saved.getId(), tenantId, saved.getBrand(), saved.getModel());
 
+        // Dispara o processamento via Gemini somente após o commit, para que a
+        // thread async não tente carregar uma pesquisa ainda invisível ao banco.
+        UUID searchId = saved.getId();
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                searchProcessor.process(searchId, tenantId);
+            }
+        });
+
         return new SearchEnqueuedResponse(saved.getId(), saved.getStatus(), DEFAULT_ESTIMATED_SECONDS);
     }
 
@@ -97,8 +104,9 @@ public class SearchServiceImpl implements SearchService {
                 toVehicleSummary(search),
                 search.getStatus(),
                 search.getCompletedAt(),
-                parseSpecs(search.getSpecs()),
-                search.getConfidence()
+                search.getSpecs(),
+                search.getConfidence(),
+                search.getAiLatencyMs()
         );
     }
 
@@ -141,15 +149,4 @@ public class SearchServiceImpl implements SearchService {
         );
     }
 
-    private JsonNode parseSpecs(String specs) {
-        if (specs == null || specs.isBlank()) {
-            return null;
-        }
-        try {
-            return objectMapper.readTree(specs);
-        } catch (JsonProcessingException e) {
-            log.error("Specs JSON inválido", e);
-            throw new BusinessException("Specs corrompidos", HttpStatus.INTERNAL_SERVER_ERROR, ErrorCode.INTERNAL_ERROR);
-        }
-    }
 }
