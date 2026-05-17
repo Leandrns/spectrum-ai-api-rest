@@ -105,7 +105,8 @@ public class SearchServiceImpl implements SearchService {
                 search.getStatus(),
                 search.getCompletedAt(),
                 search.getSpecs(),
-                search.getConfidence()
+                search.getConfidence(),
+                search.getAiLatencyMs()
         );
     }
 

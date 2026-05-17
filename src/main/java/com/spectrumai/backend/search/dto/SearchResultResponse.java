@@ -14,5 +14,6 @@ public record SearchResultResponse(
         SearchStatus status,
         OffsetDateTime completedAt,
         @JsonRawValue String specs,
-        BigDecimal overallConfidence
+        BigDecimal overallConfidence,
+        Long aiLatencyMs
 ) {}

@@ -73,8 +73,10 @@ public class Search implements TenantAware {
     private String[] categories;
 
     /**
-     * Specs estruturadas no schema JSON do contrato (engine, dimensions, technology, ...).
-     * Cada campo possui {@code value}, {@code source} e {@code sourceUrl}.
+     * Specs estruturadas no schema JSON da ficha técnica canônica (Engine & Transmission,
+     * Wheels, Connectivity, Ice Line Up, Air conditioning, Safety, High tech, Global Closing,
+     * Trim, SunRoof, Seats, Lights, 4X4, Others). Cada campo possui {@code value} e
+     * {@code source}; campos não encontrados retornam {@code "Dado não encontrado"} em value.
      */
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb")
@@ -89,6 +91,10 @@ public class Search implements TenantAware {
     private BigDecimal confidence;
 
     private String failureReason;
+
+    /** Tempo (em ms) que o provedor de IA levou para responder a chamada de geração. */
+    @Column(name = "ai_latency_ms")
+    private Long aiLatencyMs;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false)

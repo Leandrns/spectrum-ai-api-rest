@@ -78,18 +78,49 @@ public class SearchProcessor {
         AiResponse response = aiOrchestration.runSpecSearch(request);
         JsonNode root = response.structuredOutput();
 
-        JsonNode specsNode = root.path("specs");
-        if (specsNode.isMissingNode() || specsNode.isNull()) {
-            specsNode = root;
-        }
         BigDecimal confidence = readConfidence(root);
 
+        // Monta o JSON a persistir: categorias primeiro, sources sempre por último.
+        // Se o modelo colocar "sources" dentro de "specs" (apesar do schema),
+        // guardamos como fallback e ignoramos durante a cópia das categorias —
+        // ObjectNode.set() só atualiza valor, não reordena, então pular aqui é
+        // o que garante que sources fique no fim.
+        com.fasterxml.jackson.databind.node.ObjectNode toSave = objectMapper.createObjectNode();
+        JsonNode specsSourcesFallback = null;
+        JsonNode specsNode = root.path("specs");
+        if (!specsNode.isMissingNode() && !specsNode.isNull()) {
+            var iterator = specsNode.fields();
+            while (iterator.hasNext()) {
+                var entry = iterator.next();
+                if ("sources".equals(entry.getKey())) {
+                    specsSourcesFallback = entry.getValue();
+                } else {
+                    toSave.set(entry.getKey(), entry.getValue());
+                }
+            }
+        } else {
+            // fallback: usa o root excluindo campos meta
+            root.fields().forEachRemaining(e -> {
+                if (!e.getKey().equals("overallConfidence") && !e.getKey().equals("sources")) {
+                    toSave.set(e.getKey(), e.getValue());
+                }
+            });
+        }
+        JsonNode sourcesNode = root.path("sources");
+        if (sourcesNode.isMissingNode() || sourcesNode.isNull()) {
+            sourcesNode = specsSourcesFallback;
+        }
+        if (sourcesNode != null && !sourcesNode.isMissingNode() && !sourcesNode.isNull()) {
+            toSave.set("sources", sourcesNode);
+        }
+
         try {
-            search.setSpecs(objectMapper.writeValueAsString(specsNode));
+            search.setSpecs(objectMapper.writeValueAsString(toSave));
         } catch (JsonProcessingException e) {
             throw new IllegalStateException("Falha ao serializar specs retornadas pelo Gemini", e);
         }
         search.setConfidence(confidence);
+        search.setAiLatencyMs(response.latencyMs());
         search.setStatus(SearchStatus.COMPLETED);
         search.setCompletedAt(OffsetDateTime.now());
         searchRepository.save(search);
