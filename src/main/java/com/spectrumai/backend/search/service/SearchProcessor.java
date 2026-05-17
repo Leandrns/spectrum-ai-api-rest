@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.spectrumai.backend.ai.dto.AiResponse;
 import com.spectrumai.backend.ai.service.AiOrchestrationService;
+import com.spectrumai.backend.search.dto.SearchProgressEvent;
 import com.spectrumai.backend.search.dto.SearchRequest;
 import com.spectrumai.backend.search.model.Search;
 import com.spectrumai.backend.search.model.SearchStatus;
@@ -36,12 +37,16 @@ public class SearchProcessor {
     private final SearchRepository searchRepository;
     private final AiOrchestrationService aiOrchestration;
     private final ObjectMapper objectMapper;
+    private final SearchStreamService streamService;
+    private final FakeProgressScheduler fakeProgressScheduler;
 
     @Async
     public void process(UUID searchId, UUID tenantId) {
         TenantContext.setTenantId(tenantId);
         try {
             markProcessing(searchId);
+            streamService.publish(SearchProgressEvent.processing(searchId));
+            fakeProgressScheduler.start(searchId);
             try {
                 executeAndPersist(searchId);
             } catch (RuntimeException e) {
@@ -125,8 +130,12 @@ public class SearchProcessor {
         search.setCompletedAt(OffsetDateTime.now());
         searchRepository.save(search);
 
-        log.info("Pesquisa {} concluída em {}ms (confidence={})",
-                searchId, response.latencyMs(), confidence);
+        int fieldsExtracted = countLeafFields(toSave);
+        log.info("Pesquisa {} concluída em {}ms (confidence={}, fields={})",
+                searchId, response.latencyMs(), confidence, fieldsExtracted);
+
+        fakeProgressScheduler.cancel(searchId);
+        streamService.publish(SearchProgressEvent.completed(searchId, fieldsExtracted));
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -137,6 +146,8 @@ public class SearchProcessor {
             s.setCompletedAt(OffsetDateTime.now());
             searchRepository.save(s);
         });
+        fakeProgressScheduler.cancel(searchId);
+        streamService.publish(SearchProgressEvent.failed(searchId, reason));
     }
 
     private BigDecimal readConfidence(JsonNode root) {
@@ -148,5 +159,27 @@ public class SearchProcessor {
             return BigDecimal.valueOf(node.asDouble()).setScale(2, RoundingMode.HALF_UP);
         }
         return null;
+    }
+
+    /**
+     * Conta recursivamente os campos folha não-nulos do JSON de specs. Usado para
+     * informar o cliente, no evento COMPLETED, quantos campos a IA conseguiu preencher.
+     * Ignora a entrada "sources" — não é uma especificação.
+     */
+    private int countLeafFields(JsonNode node) {
+        if (node == null || node.isMissingNode() || node.isNull()) return 0;
+        if (node.isValueNode()) return 1;
+        int count = 0;
+        if (node.isObject()) {
+            var it = node.fields();
+            while (it.hasNext()) {
+                var entry = it.next();
+                if ("sources".equals(entry.getKey())) continue;
+                count += countLeafFields(entry.getValue());
+            }
+        } else if (node.isArray()) {
+            for (JsonNode item : node) count += countLeafFields(item);
+        }
+        return count;
     }
 }
