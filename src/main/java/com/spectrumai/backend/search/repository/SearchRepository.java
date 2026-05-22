@@ -10,9 +10,12 @@ import java.util.UUID;
 
 public interface SearchRepository extends JpaRepository<Search, UUID> {
 
-    Page<Search> findByTenantIdOrderByCreatedAtDesc(UUID tenantId, Pageable pageable);
+    // `tenant` e `session` em Search são ManyToOne — o underscore instrui o Spring
+    // Data a navegar para a propriedade `id` em vez de procurar um atributo direto
+    // `tenantId` (que não existe como campo JPA, só como getter de TenantAware).
+    Page<Search> findByTenant_IdOrderByCreatedAtDesc(UUID tenantId, Pageable pageable);
 
-    Page<Search> findByTenantIdAndSessionIdOrderByCreatedAtDesc(UUID tenantId, UUID sessionId, Pageable pageable);
+    Page<Search> findByTenant_IdAndSession_IdOrderByCreatedAtDesc(UUID tenantId, UUID sessionId, Pageable pageable);
 
-    List<Search> findBySessionIdOrderByCreatedAtAsc(UUID sessionId);
+    List<Search> findBySession_IdOrderByCreatedAtAsc(UUID sessionId);
 }

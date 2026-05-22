@@ -65,6 +65,6 @@ public class SessionServiceImpl implements SessionService {
     @Transactional(readOnly = true)
     public Page<AnalysisSession> list(Pageable pageable) {
         UUID tenantId = TenantContext.requireTenantId();
-        return sessionRepository.findByTenantIdOrderByCreatedAtDesc(tenantId, pageable);
+        return sessionRepository.findByTenant_IdOrderByCreatedAtDesc(tenantId, pageable);
     }
 }

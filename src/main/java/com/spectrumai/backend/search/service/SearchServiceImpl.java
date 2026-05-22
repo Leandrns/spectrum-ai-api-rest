@@ -118,8 +118,8 @@ public class SearchServiceImpl implements SearchService {
     public Page<SearchSummary> history(UUID sessionId, Pageable pageable) {
         UUID tenantId = TenantContext.requireTenantId();
         Page<Search> page = sessionId == null
-                ? searchRepository.findByTenantIdOrderByCreatedAtDesc(tenantId, pageable)
-                : searchRepository.findByTenantIdAndSessionIdOrderByCreatedAtDesc(tenantId, sessionId, pageable);
+                ? searchRepository.findByTenant_IdOrderByCreatedAtDesc(tenantId, pageable)
+                : searchRepository.findByTenant_IdAndSession_IdOrderByCreatedAtDesc(tenantId, sessionId, pageable);
         return page.map(s -> new SearchSummary(s.getId(), toVehicleSummary(s), s.getStatus(), s.getCompletedAt()));
     }
 

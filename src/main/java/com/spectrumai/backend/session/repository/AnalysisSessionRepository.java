@@ -9,5 +9,6 @@ import java.util.UUID;
 
 public interface AnalysisSessionRepository extends JpaRepository<AnalysisSession, UUID> {
 
-    Page<AnalysisSession> findByTenantIdOrderByCreatedAtDesc(UUID tenantId, Pageable pageable);
+    // `tenant` em AnalysisSession é ManyToOne — underscore navega para a propriedade `id`.
+    Page<AnalysisSession> findByTenant_IdOrderByCreatedAtDesc(UUID tenantId, Pageable pageable);
 }
