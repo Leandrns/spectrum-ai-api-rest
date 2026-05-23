@@ -31,6 +31,10 @@ services:
       FIPE_API_TOKEN: ${FIPE_API_TOKEN:-}
       FIPE_API_BASE_URL: ${FIPE_API_BASE_URL:-https://fipe.parallelum.com.br/api/v2}
       FIPE_VEHICLE_TYPE: ${FIPE_VEHICLE_TYPE:-cars}
+      FIPE_FILTER_SEGMENTS: ${FIPE_FILTER_SEGMENTS:-true}
+      FIPE_MIN_YEAR: ${FIPE_MIN_YEAR:-2022}
+      DATA_ENCRYPTION_KEY: ${DATA_ENCRYPTION_KEY:-}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
     depends_on:
       postgres:
         condition: service_healthy
