@@ -1,6 +1,6 @@
 -- ============================================================
--- Expande colunas de PII que passar�o a armazenar ciphertext (AES-GCM base64).
--- O ciphertext � cerca de 2x o tamanho do plaintext + overhead de IV/tag.
+-- Expande colunas de PII que passarao a armazenar ciphertext (AES-GCM base64).
+-- O ciphertext e cerca de 2x o tamanho do plaintext + overhead de IV/tag.
 -- ============================================================
 
 ALTER TABLE users

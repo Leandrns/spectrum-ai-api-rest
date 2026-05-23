@@ -56,7 +56,7 @@ public class SecurityConfig {
                 ).permitAll()
                 .anyRequest().authenticated()
             )
-            // requireHttps deve rodar ANTES de tudo � se a requisi��o n�o for HTTPS
+            // requireHttps deve rodar ANTES de tudo: se a requisicao nao for HTTPS
             // (quando exigido), curto-circuita com 426 sem nem tocar no rate limit ou JWT.
             .addFilterBefore(requireHttpsFilter, UsernamePasswordAuthenticationFilter.class)
             .addFilterBefore(rateLimitFilter, UsernamePasswordAuthenticationFilter.class)

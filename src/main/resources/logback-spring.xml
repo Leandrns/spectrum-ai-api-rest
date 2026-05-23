@@ -1,18 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
     Logs estruturados.
-    - dev: console texto, leg�vel
+    - dev: console texto, legivel
     - prod: console JSON (Logstash encoder) com campos padronizados
             (timestamp, level, logger, message, mdc.*, stack_trace)
 
-    NUNCA logar passwords, tokens completos, CPFs ou outros dados sens�veis.
-    Filtros de mensagem rejeitam linhas contendo essas palavras-chave por seguran�a.
+    NUNCA logar passwords, tokens completos, CPFs ou outros dados sensiveis.
+    Filtros de mensagem rejeitam linhas contendo essas palavras-chave por seguranca.
 -->
 <configuration>
 
     <springProperty scope="context" name="appName" source="spring.application.name" defaultValue="spectrum-ai-backend"/>
 
-    <!-- Filtro de seguran�a: descarta logs com padr�es de dados sens�veis -->
+    <!-- Filtro de seguranca: descarta logs marcados como SENSITIVE -->
     <turboFilter class="ch.qos.logback.classic.turbo.MarkerFilter">
         <Marker>SENSITIVE</Marker>
         <OnMatch>DENY</OnMatch>

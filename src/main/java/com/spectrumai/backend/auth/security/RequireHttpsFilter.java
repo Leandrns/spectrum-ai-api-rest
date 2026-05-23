@@ -20,13 +20,13 @@ import java.io.IOException;
 import java.time.OffsetDateTime;
 
 /**
- * For�a HTTPS quando {@code spectrum.security.require-https=true}. Substitui
+ * Forca HTTPS quando {@code spectrum.security.require-https=true}. Substitui
  * o {@code HttpSecurity.requiresChannel(...)} que foi removido no Spring
  * Security 7 (Spring Boot 4) junto com {@code ChannelDecisionManager}.
  *
  * <p>Detecta o esquema usando, em ordem:</p>
  * <ol>
- *   <li>{@code X-Forwarded-Proto} (set pelo proxy reverso � Render, nginx, ALB)</li>
+ *   <li>{@code X-Forwarded-Proto} (set pelo proxy reverso: Render, nginx, ALB)</li>
  *   <li>{@code request.isSecure()} (TLS direto na JVM)</li>
  * </ol>
  *
@@ -70,7 +70,7 @@ public class RequireHttpsFilter extends OncePerRequestFilter {
         ApiError body = new ApiError(
                 HttpStatus.UPGRADE_REQUIRED.value(),
                 ErrorCode.FORBIDDEN,
-                "HTTPS � obrigat�rio.",
+                "HTTPS e obrigatorio.",
                 OffsetDateTime.now(),
                 path
         );

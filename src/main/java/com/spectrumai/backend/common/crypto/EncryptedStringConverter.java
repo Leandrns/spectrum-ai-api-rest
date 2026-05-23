@@ -10,7 +10,7 @@ import org.springframework.stereotype.Component;
  * {@code @Convert(converter = EncryptedStringConverter.class)}.
  *
  * <p>JPA instancia o converter via {@code new}, fora do contexto Spring. Por isso
- * o encryptor � injetado via bridge est�tico ({@link AesGcmEncryptorHolder}).</p>
+ * o encryptor e injetado via bridge estatico ({@link AesGcmEncryptorHolder}).</p>
  */
 @Converter
 public class EncryptedStringConverter implements AttributeConverter<String, String> {

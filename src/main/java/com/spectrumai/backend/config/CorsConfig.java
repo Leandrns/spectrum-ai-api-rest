@@ -11,9 +11,9 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import java.util.List;
 
 /**
- * CORS restritivo: lista de origens, m�todos e headers vem de
- * {@link SecurityProperties} (env vars). N�o permite wildcard quando
- * {@code allowCredentials=true} (combina��o insegura).
+ * CORS restritivo: lista de origens, metodos e headers vem de
+ * {@link SecurityProperties} (env vars). Nao permite wildcard quando
+ * {@code allowCredentials=true} (combinacao insegura).
  */
 @Slf4j
 @Configuration
@@ -32,8 +32,8 @@ public class CorsConfig {
 
         if (hasWildcard && props.allowCredentials()) {
             throw new IllegalStateException(
-                    "CORS inseguro: allowedOrigins=\"*\" n�o pode ser combinado com allowCredentials=true. "
-                            + "Defina CORS_ALLOWED_ORIGINS com dom�nios espec�ficos.");
+                    "CORS inseguro: allowedOrigins=\"*\" nao pode ser combinado com allowCredentials=true. "
+                            + "Defina CORS_ALLOWED_ORIGINS com dominios especificos.");
         }
 
         if (hasWildcard) {

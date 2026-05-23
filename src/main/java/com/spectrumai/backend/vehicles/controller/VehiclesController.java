@@ -17,7 +17,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-@Tag(name = "Vehicles", description = "Autocomplete de marcas, modelos e vers�es")
+@Tag(name = "Vehicles", description = "Autocomplete de marcas, modelos e versões")
 @RestController
 @RequestMapping("/v1/vehicles")
 @RequiredArgsConstructor

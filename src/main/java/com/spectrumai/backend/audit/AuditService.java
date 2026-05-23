@@ -13,8 +13,8 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Persiste eventos de auditoria de forma ass�ncrona. Falhas na escrita
- * de auditoria nunca podem quebrar a opera��o de neg�cio que a originou.
+ * Persiste eventos de auditoria de forma assincrona. Falhas na escrita
+ * de auditoria nunca podem quebrar a operacao de negocio que a originou.
  */
 @Slf4j
 @Service
@@ -28,7 +28,7 @@ public class AuditService {
                        Map<String, Object> details) {
         try {
             UserPrincipal principal = currentPrincipal();
-            AuditLog log = AuditLog.builder()
+            AuditLog entry = AuditLog.builder()
                     .id(UUID.randomUUID())
                     .tenantId(principal == null ? null : principal.tenantId())
                     .actorId(principal == null ? null : principal.userId())
@@ -41,9 +41,9 @@ public class AuditService {
                     .details(details)
                     .outcome(outcome == null ? "SUCCESS" : outcome)
                     .build();
-            repository.save(log);
+            repository.save(entry);
         } catch (Exception ex) {
-            // N�o propagar: auditoria n�o pode quebrar o fluxo de neg�cio
+            // Nao propagar: auditoria nao pode quebrar o fluxo de negocio
             log.error("Falha ao gravar audit_log action={} resource={}/{}", action, resourceType, resourceId, ex);
         }
     }

@@ -15,11 +15,11 @@ import java.security.SecureRandom;
 import java.util.Base64;
 
 /**
- * Cifragem sim�trica AES-GCM 256 bits para dados em repouso. Chave deve
+ * Cifragem simetrica AES-GCM 256 bits para dados em repouso. Chave deve
  * ser provida via {@code DATA_ENCRYPTION_KEY} (base64 de 32 bytes).
  *
  * <p>Formato do ciphertext: {@code base64(IV || ciphertext || tag)}.
- * Cada chamada usa IV aleat�rio de 12 bytes (recomenda��o NIST para GCM).</p>
+ * Cada chamada usa IV aleatorio de 12 bytes (recomendacao NIST para GCM).</p>
  */
 @Slf4j
 @Component
@@ -39,15 +39,15 @@ public class AesGcmEncryptor {
     void init() {
         String keyB64 = securityProperties.encryption().aesKey();
         if (keyB64 == null || keyB64.isBlank()) {
-            log.warn("DATA_ENCRYPTION_KEY n�o configurada: campos sens�veis n�o ser�o cifrados em repouso. "
-                    + "Em produ��o exporte uma chave AES-256 (32 bytes base64).");
+            log.warn("DATA_ENCRYPTION_KEY nao configurada: campos sensiveis nao serao cifrados em repouso. "
+                    + "Em producao exporte uma chave AES-256 (32 bytes base64).");
             this.key = null;
             return;
         }
         byte[] decoded = Base64.getDecoder().decode(keyB64);
         if (decoded.length != 32) {
             throw new IllegalStateException(
-                    "DATA_ENCRYPTION_KEY inv�lida: esperados 32 bytes (AES-256), recebidos " + decoded.length);
+                    "DATA_ENCRYPTION_KEY invalida: esperados 32 bytes (AES-256), recebidos " + decoded.length);
         }
         this.key = new SecretKeySpec(decoded, ALG);
     }
@@ -75,7 +75,7 @@ public class AesGcmEncryptor {
     public String decrypt(String ciphertext) {
         if (ciphertext == null) return null;
         if (!ciphertext.startsWith("enc:v1:")) {
-            // Valor legado n�o cifrado � devolvido como est� (backward-compat)
+            // Valor legado nao cifrado e devolvido como esta (backward-compat)
             return ciphertext;
         }
         if (!isEnabled()) {

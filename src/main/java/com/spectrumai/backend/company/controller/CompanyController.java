@@ -7,7 +7,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-@Tag(name = "Companies", description = "Gest�o de empresas (tenants)")
+@Tag(name = "Companies", description = "Gestão de empresas (tenants)")
 @RestController
 @RequestMapping("/v1/companies")
 @RequiredArgsConstructor

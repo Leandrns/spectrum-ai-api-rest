@@ -1,6 +1,6 @@
 package com.spectrumai.backend.audit;
 
-/** A��es cr�ticas auditadas. */
+/** Acoes criticas auditadas. */
 public final class AuditAction {
 
     public static final String LOGIN_SUCCESS       = "LOGIN_SUCCESS";
