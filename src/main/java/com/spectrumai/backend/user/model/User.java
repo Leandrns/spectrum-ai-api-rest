@@ -1,7 +1,9 @@
 package com.spectrumai.backend.user.model;
 
+import com.spectrumai.backend.common.crypto.EncryptedStringConverter;
 import com.spectrumai.backend.company.model.Company;
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -38,7 +40,8 @@ public class User {
     @JoinColumn(name = "tenant_id", nullable = false)
     private Company tenant;
 
-    @Column(name = "full_name", nullable = false)
+    @Column(name = "full_name", nullable = false, length = 512)
+    @Convert(converter = EncryptedStringConverter.class)
     private String fullName;
 
     @Column(nullable = false, unique = true)

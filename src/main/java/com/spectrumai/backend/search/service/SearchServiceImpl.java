@@ -1,5 +1,7 @@
 package com.spectrumai.backend.search.service;
 
+import com.spectrumai.backend.audit.AuditAction;
+import com.spectrumai.backend.audit.AuditService;
 import com.spectrumai.backend.auth.security.SecurityUtil;
 import com.spectrumai.backend.common.exception.ResourceNotFoundException;
 import com.spectrumai.backend.company.model.Company;
@@ -31,6 +33,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 
 import java.time.Duration;
 import java.time.OffsetDateTime;
+import java.util.Map;
 import java.util.UUID;
 
 @Slf4j
@@ -48,6 +51,7 @@ public class SearchServiceImpl implements SearchService {
     private final UserRepository userRepository;
     private final SearchProcessor searchProcessor;
     private final SearchStreamService streamService;
+    private final AuditService auditService;
 
     @Override
     public SearchEnqueuedResponse enqueue(SearchRequest request) {
@@ -83,6 +87,8 @@ public class SearchServiceImpl implements SearchService {
         Search saved = searchRepository.save(search);
         log.info("Pesquisa enfileirada: id={} tenant={} brand={} model={}",
                 saved.getId(), tenantId, saved.getBrand(), saved.getModel());
+        auditService.recordSuccess(AuditAction.SEARCH_CREATED, "search", saved.getId().toString(),
+                Map.of("brand", saved.getBrand(), "model", saved.getModel()));
 
         // Dispara o processamento via Gemini somente após o commit, para que a
         // thread async não tente carregar uma pesquisa ainda invisível ao banco.
@@ -130,6 +136,7 @@ public class SearchServiceImpl implements SearchService {
         OffsetDateTime expiresAt = OffsetDateTime.now().plus(EXPORT_URL_TTL);
         String downloadUrl = "/v1/searches/" + search.getId() + "/export/download?expires="
                 + expiresAt.toEpochSecond();
+        auditService.recordSuccess(AuditAction.SEARCH_EXPORTED, "search", search.getId().toString());
         return new SearchExportResponse(downloadUrl, expiresAt);
     }
 

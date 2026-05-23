@@ -1,8 +1,9 @@
 package com.spectrumai.backend.session.dto;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 
 public record CreateSessionRequest(
-        @NotBlank String name,
-        String description
+        @NotBlank @Size(max = 120) String name,
+        @Size(max = 1000) String description
 ) {}

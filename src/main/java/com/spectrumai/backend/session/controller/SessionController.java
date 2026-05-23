@@ -9,6 +9,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -19,26 +20,30 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
 
-@Tag(name = "Sessions", description = "Sessões de análise competitiva")
+@Tag(name = "Sessions", description = "Sess�es de an�lise competitiva")
 @RestController
 @RequestMapping("/v1/sessions")
 @RequiredArgsConstructor
+@PreAuthorize("isAuthenticated()")
 public class SessionController {
 
     private final SessionService sessionService;
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
+    @PreAuthorize("hasAnyRole('ADMIN','ANALYST')")
     public SessionResponse create(@Valid @RequestBody CreateSessionRequest request) {
         return SessionResponse.from(sessionService.create(request.name(), request.description()));
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN','ANALYST','VIEWER')")
     public SessionResponse getById(@PathVariable UUID id) {
         return SessionResponse.from(sessionService.getById(id));
     }
 
     @GetMapping
+    @PreAuthorize("hasAnyRole('ADMIN','ANALYST','VIEWER')")
     public PageResponse<SessionResponse> list(Pageable pageable) {
         return PageResponse.of(sessionService.list(pageable).map(SessionResponse::from));
     }

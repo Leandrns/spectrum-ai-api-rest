@@ -3,13 +3,15 @@ package com.spectrumai.backend.company.controller;
 import com.spectrumai.backend.company.service.CompanyService;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-@Tag(name = "Companies", description = "Gestão de empresas (tenants)")
+@Tag(name = "Companies", description = "Gest�o de empresas (tenants)")
 @RestController
 @RequestMapping("/v1/companies")
 @RequiredArgsConstructor
+@PreAuthorize("hasRole('ADMIN')")
 public class CompanyController {
 
     private final CompanyService companyService;

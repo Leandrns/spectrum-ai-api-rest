@@ -1,5 +1,7 @@
 package com.spectrumai.backend.session.service;
 
+import com.spectrumai.backend.audit.AuditAction;
+import com.spectrumai.backend.audit.AuditService;
 import com.spectrumai.backend.auth.security.SecurityUtil;
 import com.spectrumai.backend.common.exception.ResourceNotFoundException;
 import com.spectrumai.backend.company.model.Company;
@@ -27,6 +29,7 @@ public class SessionServiceImpl implements SessionService {
     private final AnalysisSessionRepository sessionRepository;
     private final UserRepository userRepository;
     private final CompanyRepository companyRepository;
+    private final AuditService auditService;
 
     @Override
     public AnalysisSession create(String name, String description) {
@@ -46,6 +49,7 @@ public class SessionServiceImpl implements SessionService {
 
         AnalysisSession saved = sessionRepository.save(session);
         log.info("Sessão criada: id={} tenant={} owner={}", saved.getId(), tenantId, userId);
+        auditService.recordSuccess(AuditAction.SESSION_CREATED, "session", saved.getId().toString());
         return saved;
     }
 

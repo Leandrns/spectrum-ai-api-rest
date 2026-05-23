@@ -113,6 +113,13 @@
             <optional>true</optional>
         </dependency>
 
+        <!-- Logs estruturados em JSON (Logstash encoder) -->
+        <dependency>
+            <groupId>net.logstash.logback</groupId>
+            <artifactId>logstash-logback-encoder</artifactId>
+            <version>7.4</version>
+        </dependency>
+
         <!-- Testes -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

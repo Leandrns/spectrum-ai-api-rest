@@ -1,13 +1,17 @@
 package com.spectrumai.backend.auth.service;
 
+import com.spectrumai.backend.audit.AuditAction;
+import com.spectrumai.backend.audit.AuditService;
 import com.spectrumai.backend.auth.dto.AuthResponse;
 import com.spectrumai.backend.auth.dto.AuthenticatedUser;
 import com.spectrumai.backend.auth.dto.LoginRequest;
 import com.spectrumai.backend.auth.dto.RefreshResponse;
 import com.spectrumai.backend.auth.dto.RegisterRequest;
+import com.spectrumai.backend.auth.security.LoginAttemptService;
 import com.spectrumai.backend.auth.security.UserPrincipal;
 import com.spectrumai.backend.common.exception.BusinessException;
 import com.spectrumai.backend.common.exception.ErrorCode;
+import com.spectrumai.backend.common.util.RequestContext;
 import com.spectrumai.backend.company.model.Company;
 import com.spectrumai.backend.company.repository.CompanyRepository;
 import com.spectrumai.backend.config.JwtProperties;
@@ -21,6 +25,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Map;
 import java.util.UUID;
 
 @Slf4j
@@ -34,18 +39,46 @@ public class AuthServiceImpl implements AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final JwtProperties jwtProperties;
+    private final LoginAttemptService loginAttemptService;
+    private final AuditService auditService;
 
     @Override
     public AuthResponse login(LoginRequest request) {
-        User user = userRepository.findByEmail(request.email())
-                .orElseThrow(this::unauthorized);
+        String ip = RequestContext.clientIp();
+        String email = request.email();
 
-        if (!user.isActive() || !passwordEncoder.matches(request.password(), user.getPasswordHash())) {
+        if (loginAttemptService.isBlocked(email, ip)) {
+            log.warn("AUTH_BLOCKED email={} ip={} reason=lockout", maskEmail(email), ip);
+            auditService.record(AuditAction.LOGIN_BLOCKED, "user", null, "FAILURE",
+                    Map.of("email", maskEmail(email), "ip", ip));
+            throw new BusinessException(
+                    "Muitas tentativas de login. Tente novamente em alguns minutos.",
+                    HttpStatus.TOO_MANY_REQUESTS,
+                    ErrorCode.RATE_LIMITED);
+        }
+
+        User user = userRepository.findByEmail(email).orElse(null);
+        if (user == null || !user.isActive()
+                || !passwordEncoder.matches(request.password(), user.getPasswordHash())) {
+            loginAttemptService.recordFailure(email, ip);
+            auditService.record(AuditAction.LOGIN_FAILURE, "user",
+                    user == null ? null : user.getId().toString(), "FAILURE",
+                    Map.of("email", maskEmail(email), "ip", ip));
             throw unauthorized();
         }
 
-        log.info("Login bem-sucedido: userId={}, tenantId={}", user.getId(), user.getTenant().getId());
+        loginAttemptService.recordSuccess(email, ip);
+        log.info("AUTH_SUCCESS userId={} tenantId={} ip={}",
+                user.getId(), user.getTenant().getId(), ip);
+        auditService.recordSuccess(AuditAction.LOGIN_SUCCESS, "user", user.getId().toString());
         return buildAuthResponse(user);
+    }
+
+    private String maskEmail(String email) {
+        if (email == null) return "?";
+        int at = email.indexOf('@');
+        if (at <= 2) return "***" + (at >= 0 ? email.substring(at) : "");
+        return email.substring(0, 2) + "***" + email.substring(at);
     }
 
     @Override
@@ -78,6 +111,8 @@ public class AuthServiceImpl implements AuthService {
 
         log.info("Cadastro: tenant={} ({}), user={} ({})",
                 tenant.getName(), tenant.getId(), user.getEmail(), user.getId());
+        auditService.record(AuditAction.USER_REGISTER, "user", user.getId().toString(), "SUCCESS",
+                Map.of("role", user.getRole().name(), "tenantId", tenant.getId().toString()));
         return buildAuthResponse(user);
     }
 
@@ -105,6 +140,8 @@ public class AuthServiceImpl implements AuthService {
 
         log.info("Login: tenant={} ({}), user={} ({})",
                 tenant.getName(), tenant.getId(), user.getEmail(), user.getId());
+        auditService.record(AuditAction.USER_REGISTER, "user", user.getId().toString(), "SUCCESS",
+                Map.of("role", user.getRole().name(), "tenantId", tenant.getId().toString()));
         return buildAuthResponse(user);
     }
 
