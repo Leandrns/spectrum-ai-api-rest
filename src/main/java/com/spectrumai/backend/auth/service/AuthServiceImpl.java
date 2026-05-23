@@ -86,6 +86,7 @@ public class AuthServiceImpl implements AuthService {
         if (userRepository.existsByEmail(request.email())) {
             throw new BusinessException("E-mail já cadastrado", HttpStatus.CONFLICT, ErrorCode.VALIDATION_ERROR);
         }
+        rejectPasswordContainingUserData(request.password(), request.email(), request.fullName(), request.companyName());
 
         Company tenant;
 
@@ -121,6 +122,7 @@ public class AuthServiceImpl implements AuthService {
         if (userRepository.existsByEmail(request.email())) {
             throw new BusinessException("E-mail já cadastrado", HttpStatus.CONFLICT, ErrorCode.VALIDATION_ERROR);
         }
+        rejectPasswordContainingUserData(request.password(), request.email(), request.fullName(), request.companyName());
 
         if (!companyRepository.existsByName(request.companyName())) {
             throw new BusinessException("Empresa não cadastrada", HttpStatus.NOT_FOUND, ErrorCode.VALIDATION_ERROR);
@@ -186,5 +188,40 @@ public class AuthServiceImpl implements AuthService {
 
     private BusinessException unauthorized() {
         return new BusinessException("Credenciais inválidas", HttpStatus.UNAUTHORIZED, ErrorCode.UNAUTHORIZED);
+    }
+
+    /**
+     * Rejeita senhas que contem trechos identificaveis do usuario (email local-part,
+     * nome ou empresa). Bloqueia variantes triviais como senha = "JoaoSilva2024!".
+     *
+     * <p>Compara case-insensitive em janelas de 4 caracteres. Tokens com menos de
+     * 4 chars sao ignorados (ex.: nome "Ana" nao bloqueia "Ana1234!").</p>
+     */
+    private void rejectPasswordContainingUserData(String password, String email, String fullName, String company) {
+        if (password == null) return;
+        String lowerPwd = password.toLowerCase();
+
+        // Local-part do email (antes do @)
+        String emailLocal = email == null ? "" : email.toLowerCase();
+        int at = emailLocal.indexOf('@');
+        if (at > 0) emailLocal = emailLocal.substring(0, at);
+
+        String[] candidates = {
+                emailLocal,
+                fullName == null ? "" : fullName.toLowerCase(),
+                company == null ? "" : company.toLowerCase()
+        };
+
+        for (String candidate : candidates) {
+            if (candidate.length() < 4) continue;
+            for (String token : candidate.split("[^a-z0-9]+")) {
+                if (token.length() >= 4 && lowerPwd.contains(token)) {
+                    throw new BusinessException(
+                            "A senha não pode conter seu nome, e-mail ou nome da empresa.",
+                            HttpStatus.BAD_REQUEST,
+                            ErrorCode.VALIDATION_ERROR);
+                }
+            }
+        }
     }
 }
