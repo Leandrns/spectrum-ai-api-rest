@@ -26,9 +26,9 @@ import java.util.concurrent.atomic.AtomicReference;
  * Rate limit por IP usando algoritmo token-bucket in-memory.
  *
  * <p>Endpoints {@code /v1/auth/**} usam o limite mais restrito (anti
- * brute-force). Demais endpoints usam o limite padr�o.</p>
+ * brute-force). Demais endpoints usam o limite padrao.</p>
  *
- * <p>Para deploy multi-inst�ncia, substituir o map por Redis (ex.: bucket4j-redis).</p>
+ * <p>Para deploy multi-instancia, substituir o map por Redis (ex.: bucket4j-redis).</p>
  */
 @Slf4j
 @Component
@@ -51,7 +51,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
         }
 
         String path = request.getRequestURI();
-        // CORS preflight n�o entra na contagem
+        // CORS preflight nao entra na contagem
         if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
             filterChain.doFilter(request, response);
             return;
@@ -111,7 +111,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
         ApiError body = new ApiError(
                 HttpStatus.TOO_MANY_REQUESTS.value(),
                 ErrorCode.RATE_LIMITED,
-                "Limite de requisi��es excedido. Tente novamente em instantes.",
+                "Limite de requisicoes excedido. Tente novamente em instantes.",
                 OffsetDateTime.now(),
                 request.getRequestURI()
         );

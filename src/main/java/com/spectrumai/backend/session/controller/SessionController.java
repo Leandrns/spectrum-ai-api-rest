@@ -20,7 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
 
-@Tag(name = "Sessions", description = "Sess�es de an�lise competitiva")
+@Tag(name = "Sessions", description = "Sessões de análise competitiva")
 @RestController
 @RequestMapping("/v1/sessions")
 @RequiredArgsConstructor

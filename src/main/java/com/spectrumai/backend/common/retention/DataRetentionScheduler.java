@@ -16,7 +16,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * Job di�rio de descarte seguro de dados antigos (LGPD/GDPR). Configurado via
+ * Job diario de descarte seguro de dados antigos (LGPD/GDPR). Configurado via
  * {@code spectrum.security.retention.*}. Executa apenas se
  * {@code retention.enabled=true}.
  */

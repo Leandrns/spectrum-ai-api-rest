@@ -15,7 +15,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * temporario quando o numero de falhas excede {@code lockout.max-failures}
  * dentro da janela {@code lockout.window-seconds}.
  *
- * <p>In-memory por design (deploy single-instance). Em produ��o multi-replica
+ * <p>In-memory por design (deploy single-instance). Em producao multi-replica
  * usar Redis com TTL.</p>
  */
 @Slf4j

@@ -29,7 +29,7 @@ import reactor.core.publisher.Flux;
 
 import java.util.UUID;
 
-@Tag(name = "Searches", description = "Pesquisas competitivas de ve�culos")
+@Tag(name = "Searches", description = "Pesquisas competitivas de veículos")
 @RestController
 @RequestMapping("/v1/searches")
 @RequiredArgsConstructor
