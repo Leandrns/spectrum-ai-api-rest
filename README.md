@@ -6,6 +6,18 @@ Construída com **Spring Boot 4**, **Java 21**, **PostgreSQL 16** e integração
 
 ---
 
+## Integrantes
+
+Caio Alexandre dos Santos - RM: 558460
+
+Leandro do Nascimento Souza - RM: 558893
+
+Rafael de Mônaco Maniezo - RM: 556079
+
+Vinicius Rozas Pannuci de Paula Cont - RM: 555338
+
+---
+
 ## Sumário
 
 - [Quick start (TL;DR)](#quick-start-tldr)
