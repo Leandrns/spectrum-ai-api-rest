@@ -2,6 +2,7 @@ package com.spectrumai.backend.config;
 
 import com.spectrumai.backend.auth.security.JwtAuthenticationFilter;
 import com.spectrumai.backend.auth.security.RateLimitFilter;
+import com.spectrumai.backend.auth.security.RequireHttpsFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -24,7 +25,7 @@ public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final RateLimitFilter rateLimitFilter;
-    private final SecurityProperties securityProperties;
+    private final RequireHttpsFilter requireHttpsFilter;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -55,12 +56,11 @@ public class SecurityConfig {
                 ).permitAll()
                 .anyRequest().authenticated()
             )
+            // requireHttps deve rodar ANTES de tudo � se a requisi��o n�o for HTTPS
+            // (quando exigido), curto-circuita com 426 sem nem tocar no rate limit ou JWT.
+            .addFilterBefore(requireHttpsFilter, UsernamePasswordAuthenticationFilter.class)
             .addFilterBefore(rateLimitFilter, UsernamePasswordAuthenticationFilter.class)
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
-
-        if (securityProperties.requireHttps()) {
-            http.requiresChannel(channel -> channel.anyRequest().requiresSecure());
-        }
 
         return http.build();
     }
