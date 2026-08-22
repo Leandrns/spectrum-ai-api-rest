@@ -6,6 +6,8 @@ import com.spectrumai.backend.auth.security.SecurityUtil;
 import com.spectrumai.backend.common.exception.ResourceNotFoundException;
 import com.spectrumai.backend.company.model.Company;
 import com.spectrumai.backend.company.repository.CompanyRepository;
+import com.spectrumai.backend.export.ExportFormat;
+import com.spectrumai.backend.export.service.ExportService;
 import com.spectrumai.backend.search.dto.SearchEnqueuedResponse;
 import com.spectrumai.backend.search.dto.SearchExportResponse;
 import com.spectrumai.backend.search.dto.SearchProgressEvent;
@@ -31,8 +33,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
-import java.time.Duration;
-import java.time.OffsetDateTime;
 import java.util.Map;
 import java.util.UUID;
 
@@ -43,7 +43,6 @@ import java.util.UUID;
 public class SearchServiceImpl implements SearchService {
 
     private static final int DEFAULT_ESTIMATED_SECONDS = 30;
-    private static final Duration EXPORT_URL_TTL = Duration.ofHours(1);
 
     private final SearchRepository searchRepository;
     private final AnalysisSessionRepository sessionRepository;
@@ -52,6 +51,7 @@ public class SearchServiceImpl implements SearchService {
     private final SearchProcessor searchProcessor;
     private final SearchStreamService streamService;
     private final AuditService auditService;
+    private final ExportService exportService;
 
     @Override
     public SearchEnqueuedResponse enqueue(SearchRequest request) {
@@ -129,15 +129,14 @@ public class SearchServiceImpl implements SearchService {
         return page.map(s -> new SearchSummary(s.getId(), toVehicleSummary(s), s.getStatus(), s.getCompletedAt()));
     }
 
+    /**
+     * Resolve a pesquisa dentro do tenant e delega a geração do arquivo. Não é
+     * {@code readOnly}: a exportação registra o arquivo gerado em {@code data_exports}.
+     */
     @Override
-    @Transactional(readOnly = true)
-    public SearchExportResponse export(UUID searchId) {
+    public SearchExportResponse export(UUID searchId, ExportFormat format) {
         Search search = loadSearchScoped(searchId);
-        OffsetDateTime expiresAt = OffsetDateTime.now().plus(EXPORT_URL_TTL);
-        String downloadUrl = "/v1/searches/" + search.getId() + "/export/download?expires="
-                + expiresAt.toEpochSecond();
-        auditService.recordSuccess(AuditAction.SEARCH_EXPORTED, "search", search.getId().toString());
-        return new SearchExportResponse(downloadUrl, expiresAt);
+        return exportService.exportSearch(search, format);
     }
 
     private Search loadSearchScoped(UUID searchId) {

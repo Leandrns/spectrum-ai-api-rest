@@ -26,7 +26,7 @@ import java.time.OffsetDateTime;
  *
  * <p>Detecta o esquema usando, em ordem:</p>
  * <ol>
- *   <li>{@code X-Forwarded-Proto} (set pelo proxy reverso: Render, nginx, ALB)</li>
+ *   <li>{@code X-Forwarded-Proto} (set pelo proxy reverso: Railway, nginx, ALB)</li>
  *   <li>{@code request.isSecure()} (TLS direto na JVM)</li>
  * </ol>
  *

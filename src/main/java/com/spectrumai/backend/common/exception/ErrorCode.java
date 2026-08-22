@@ -9,6 +9,8 @@ public final class ErrorCode {
     public static final String NOT_FOUND        = "NOT_FOUND";
     public static final String RATE_LIMITED     = "RATE_LIMITED";
     public static final String INTERNAL_ERROR   = "INTERNAL_ERROR";
+    public static final String NOT_IMPLEMENTED  = "NOT_IMPLEMENTED";
+    public static final String STORAGE_ERROR    = "STORAGE_ERROR";
 
     private ErrorCode() {}
 }

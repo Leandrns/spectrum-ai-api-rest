@@ -1,0 +1,17 @@
+# Habilita a exportacao CSV/PDF no ambiente local.
+#
+# 1. Baixe o JSON da service account (com roles/storage.objectAdmin no bucket)
+#    e salve como gcp-credentials.json na raiz do projeto.
+#    Esse arquivo esta no .gitignore e no .dockerignore - nunca commite.
+# 2. Copie este arquivo:  cp docker-compose.override.yml.example docker-compose.override.yml
+# 3. Defina GCS_EXPORT_BUCKET e GCP_PROJECT_ID no .env
+# 4. docker compose up --build
+#
+# O Compose aplica o docker-compose.override.yml automaticamente, sem -f extra.
+
+services:
+  api:
+    environment:
+      GOOGLE_APPLICATION_CREDENTIALS: /run/secrets/gcp-credentials.json
+    volumes:
+      - ${GCP_CREDENTIALS_FILE:-./gcp-credentials.json}:/run/secrets/gcp-credentials.json:ro
