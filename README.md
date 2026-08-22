@@ -101,7 +101,6 @@ Abra o `.env` e preencha:
 | `GEMINI_API_KEY` | Sim | https://aistudio.google.com/apikey (gratuito) |
 | `FIPE_API_TOKEN` | Sim (para popular catálogo) | https://fipe.online/dashboard (gratuito) |
 | `DATABASE_PASSWORD` | Recomendado | Default `spectrum` funciona em dev local |
-| `DATA_ENCRYPTION_KEY` | Apenas em prod | Dev usa fallback embutido — em prod, gere com `openssl rand -base64 32` |
 
 **Gerando um `JWT_SECRET` seguro:**
 ```bash
@@ -308,10 +307,55 @@ curl http://localhost:8080/v1/searches/<id>/result \
 
 | Perfil | Uso | Comportamento |
 |---|---|---|
-| `dev` | Desenvolvimento local | SQL logado, stack trace nos erros, log nível DEBUG, rate limit relaxado, fallback de chaves JWT/AES |
-| `prod` | Produção | SQL desativado, erros sem detalhes, HTTPS obrigatório, JWT/AES via env var obrigatório |
+| `dev` | Desenvolvimento local | SQL logado, stack trace nos erros, log nível DEBUG, rate limit relaxado, fallback de chave JWT |
+| `prod` | Produção | SQL desativado, erros sem detalhes, HTTPS obrigatório, JWT via env var obrigatório |
 
 Controlado pela variável `SPRING_PROFILES_ACTIVE` no `.env`.
+
+---
+
+## Deploy em produção
+
+Stack de produção: **Render (plano pago) para a API** + **Supabase (free tier) para o Postgres**. Dois provedores, mas ambos com painel próprio, HTTPS automático e deploy via `git push` — nenhum passo manual de servidor (VM, firewall, certificado) é necessário.
+
+### 1. Banco (Supabase)
+
+1. Crie um projeto gratuito em [supabase.com](https://supabase.com).
+2. Em **Settings → Database**, copie a connection string no modo **Session** (porta 5432) — **não** use o Transaction pooler (porta 6543), que não suporta prepared statements da forma que o Hibernate usa.
+3. A URL final tem o formato:
+   ```
+   jdbc:postgresql://db.xxxxxxxxxxxx.supabase.co:5432/postgres?sslmode=require
+   ```
+   `sslmode=require` é obrigatório — o Supabase não aceita conexão sem TLS.
+
+### 2. API (Render)
+
+1. No [dashboard do Render](https://dashboard.render.com), **New → Web Service**, conecte o repositório `spectrum-ai-api-rest`.
+2. Ambiente: **Docker** (o Render detecta o `Dockerfile` da raiz automaticamente, sem configuração extra).
+3. Escolha um plano pago (ex.: Starter) — isso remove o sleep por inatividade do plano free.
+4. Em **Environment**, configure as variáveis (mesmas do `.env`, valores de produção):
+
+   | Variável | Valor |
+   |---|---|
+   | `SPRING_PROFILES_ACTIVE` | `prod` |
+   | `DATABASE_URL` | connection string do Supabase (passo 1) |
+   | `DATABASE_USER` | `postgres` |
+   | `DATABASE_PASSWORD` | senha do projeto Supabase |
+   | `JWT_SECRET` | gerar com `openssl rand -base64 64` |
+   | `GEMINI_API_KEY` | sua chave da Gemini API |
+   | `FIPE_API_TOKEN` | seu token da FIPE API |
+   | `CORS_ALLOWED_ORIGINS` | origem do app mobile em produção |
+
+   `REQUIRE_HTTPS` já é `true` por padrão em `application-prod.properties`, e o Render já envia `X-Forwarded-Proto` corretamente — nenhum ajuste extra de proxy é necessário (diferente de um deploy em VM própria, onde isso teria que ser configurado manualmente).
+5. Deploy automático: qualquer `git push` na branch conectada builda e publica a nova versão sozinho — não há passo manual de deploy.
+
+### Verificando
+
+```bash
+curl https://<seu-servico>.onrender.com/actuator/health
+```
+
+Depois, atualize `EXPO_PUBLIC_API_URL` no app mobile para essa URL.
 
 ---
 
@@ -350,7 +394,7 @@ src/main/java/com/spectrumai/backend/
 ├── ai/            # Integração com provedores de IA (Gemini)
 ├── tenant/        # Isolamento de dados por tenant
 ├── audit/         # Trilha de auditoria (LGPD/SOX)
-├── common/        # Crypto AES-GCM, DTOs, exceções, retenção de dados
+├── common/        # DTOs, exceções, retenção de dados
 └── config/        # Configurações gerais (Security, CORS, OpenAPI)
 ```
 
@@ -367,7 +411,7 @@ Migrations ficam em `src/main/resources/db/migration/` e seguem o padrão Flyway
 | `V3__prompt_templates_seed.sql` | Seed dos prompts versionados para o Gemini |
 | `V4__searches_ai_latency_ms.sql` | Métrica de latência da IA |
 | `V5__audit_log.sql` | Trilha de auditoria + soft delete |
-| `V6__encrypt_pii_columns.sql` | Expande colunas de PII para suportar ciphertext AES-GCM |
+| `V6__encrypt_pii_columns.sql` | Legado: alargou colunas de PII para ciphertext. A criptografia em repouso foi removida; o arquivo é mantido porque a migration já foi aplicada |
 
 Para criar uma nova migration, adicione um arquivo com o próximo número de versão.
 

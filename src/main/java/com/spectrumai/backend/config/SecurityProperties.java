@@ -10,7 +10,6 @@ public record SecurityProperties(
         boolean requireHttps,
         RateLimit rateLimit,
         Lockout lockout,
-        Encryption encryption,
         Retention retention
 ) {
 
@@ -34,8 +33,6 @@ public record SecurityProperties(
             int maxFailures,
             int windowSeconds
     ) {}
-
-    public record Encryption(String aesKey) {}
 
     public record Retention(
             boolean enabled,
