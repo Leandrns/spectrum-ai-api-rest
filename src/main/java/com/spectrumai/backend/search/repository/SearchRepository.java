@@ -1,6 +1,7 @@
 package com.spectrumai.backend.search.repository;
 
 import com.spectrumai.backend.search.model.Search;
+import com.spectrumai.backend.search.model.SearchStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -22,6 +23,14 @@ public interface SearchRepository extends JpaRepository<Search, UUID> {
     Page<Search> findByTenant_IdAndSession_IdOrderByCreatedAtDesc(UUID tenantId, UUID sessionId, Pageable pageable);
 
     List<Search> findBySession_IdOrderByCreatedAtAsc(UUID sessionId);
+
+    /**
+     * Pesquisas de uma sessão em um status, da mais recente para a mais antiga.
+     * A exportação por sessão depende dessa ordem para escolher, entre pesquisas
+     * repetidas do mesmo veículo, a que foi concluída por último.
+     */
+    List<Search> findByTenant_IdAndSession_IdAndStatusOrderByCompletedAtDesc(
+            UUID tenantId, UUID sessionId, SearchStatus status);
 
     /** Purga searches completadas/falhadas anteriores a {@code before}. */
     @Modifying

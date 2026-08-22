@@ -1,9 +1,14 @@
 package com.spectrumai.backend.session.controller;
 
 import com.spectrumai.backend.common.dto.PageResponse;
+import com.spectrumai.backend.export.ExportFormat;
+import com.spectrumai.backend.export.service.ExportService;
+import com.spectrumai.backend.search.dto.SearchExportResponse;
+import com.spectrumai.backend.session.model.AnalysisSession;
 import com.spectrumai.backend.session.dto.CreateSessionRequest;
 import com.spectrumai.backend.session.dto.SessionResponse;
 import com.spectrumai.backend.session.service.SessionService;
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -15,6 +20,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -28,6 +34,7 @@ import java.util.UUID;
 public class SessionController {
 
     private final SessionService sessionService;
+    private final ExportService exportService;
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -46,5 +53,22 @@ public class SessionController {
     @PreAuthorize("hasAnyRole('ADMIN','ANALYST','VIEWER')")
     public PageResponse<SessionResponse> list(Pageable pageable) {
         return PageResponse.of(sessionService.list(pageable).map(SessionResponse::from));
+    }
+
+    @Operation(
+            summary = "Exporta o comparativo da sessão",
+            description = """
+                    Reúne num único arquivo as fichas técnicas de todas as pesquisas concluídas
+                    da sessão — é a exportação pensada para comparar concorrentes no BI. Quando o
+                    mesmo veículo foi pesquisado mais de uma vez, vale a pesquisa mais recente.
+                    Formatos: `csv` (padrão) e `pdf` (ainda indisponível).""")
+    @GetMapping("/{id}/export")
+    @PreAuthorize("hasAnyRole('ADMIN','ANALYST')")
+    public SearchExportResponse export(
+            @PathVariable UUID id,
+            @RequestParam(required = false, defaultValue = "csv") String format
+    ) {
+        AnalysisSession session = sessionService.getById(id);
+        return exportService.exportSession(session, ExportFormat.from(format));
     }
 }

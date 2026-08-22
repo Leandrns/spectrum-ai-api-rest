@@ -33,7 +33,22 @@ services:
       FIPE_VEHICLE_TYPE: ${FIPE_VEHICLE_TYPE:-cars}
       FIPE_FILTER_SEGMENTS: ${FIPE_FILTER_SEGMENTS:-true}
       FIPE_MIN_YEAR: ${FIPE_MIN_YEAR:-2022}
-      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
+      # ATENCAO ao editar: `${VAR:-}` passa a variavel VAZIA para o container, e o
+      # default do Spring (`${VAR:origens}`) so vale quando a variavel NAO existe.
+      # Deixar vazio aqui zera a lista de origens e derruba todo CORS com 403.
+      # Por isso o default de dev vai inline — mantenha em sincronia com
+      # application-dev.properties.
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:*,http://127.0.0.1:*,http://10.0.2.2:*,http://192.168.*.*:*,http://172.16.*.*:*,http://10.*.*.*:*,exp://*}
+      # Exportacao CSV/PDF. Sem bucket configurado a API sobe normalmente e apenas
+      # os endpoints /export respondem 502. Para habilitar, copie
+      # docker-compose.override.yml.example para docker-compose.override.yml —
+      # o Compose o aplica sozinho e ele monta o JSON da service account.
+      GCS_EXPORT_BUCKET: ${GCS_EXPORT_BUCKET:-}
+      GCP_PROJECT_ID: ${GCP_PROJECT_ID:-}
+      EXPORT_URL_TTL_MINUTES: ${EXPORT_URL_TTL_MINUTES:-60}
+      # Alternativa ao arquivo de credencial montado, para reproduzir localmente o
+      # mesmo caminho usado em Railway/Heroku. Vazio = usa o arquivo do override.
+      GCP_CREDENTIALS_JSON: ${GCP_CREDENTIALS_JSON:-}
     depends_on:
       postgres:
         condition: service_healthy

@@ -1,6 +1,7 @@
 package com.spectrumai.backend.search.controller;
 
 import com.spectrumai.backend.common.dto.PageResponse;
+import com.spectrumai.backend.export.ExportFormat;
 import com.spectrumai.backend.search.dto.SearchEnqueuedResponse;
 import com.spectrumai.backend.search.dto.SearchExportResponse;
 import com.spectrumai.backend.search.dto.SearchProgressEvent;
@@ -9,6 +10,7 @@ import com.spectrumai.backend.search.dto.SearchResultResponse;
 import com.spectrumai.backend.search.dto.SearchSummary;
 import com.spectrumai.backend.search.service.SearchService;
 import com.spectrumai.backend.search.service.SearchStreamService;
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -67,9 +69,18 @@ public class SearchController {
         return streamService.subscribe(id);
     }
 
+    @Operation(
+            summary = "Exporta a ficha técnica da pesquisa",
+            description = """
+                    Gera o arquivo, armazena no bucket e devolve uma URL de download temporária.
+                    O CSV sai em formato long (uma linha por categoria/campo), pronto para
+                    ferramentas de BI. Formatos: `csv` (padrão) e `pdf` (ainda indisponível).""")
     @GetMapping("/{id}/export")
     @PreAuthorize("hasAnyRole('ADMIN','ANALYST')")
-    public SearchExportResponse export(@PathVariable UUID id) {
-        return searchService.export(id);
+    public SearchExportResponse export(
+            @PathVariable UUID id,
+            @RequestParam(required = false, defaultValue = "csv") String format
+    ) {
+        return searchService.export(id, ExportFormat.from(format));
     }
 }

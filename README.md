@@ -27,6 +27,7 @@ Vinicius Rozas Pannuci de Paula Cont - RM: 555338
 - [Rodando a aplicação](#rodando-a-aplicação)
 - [Roteiro de teste end-to-end](#roteiro-de-teste-end-to-end)
 - [Endpoints principais](#endpoints-principais)
+- [Exportação de dados (CSV)](#exportação-de-dados-csv)
 - [Perfis de execução](#perfis-de-execução)
 - [Comandos úteis](#comandos-úteis)
 - [Estrutura de módulos](#estrutura-de-módulos)
@@ -101,6 +102,10 @@ Abra o `.env` e preencha:
 | `GEMINI_API_KEY` | Sim | https://aistudio.google.com/apikey (gratuito) |
 | `FIPE_API_TOKEN` | Sim (para popular catálogo) | https://fipe.online/dashboard (gratuito) |
 | `DATABASE_PASSWORD` | Recomendado | Default `spectrum` funciona em dev local |
+| `GCS_EXPORT_BUCKET` | Só para exportação | Nome do bucket no GCP — veja [Exportação de dados](#exportação-de-dados-csv) |
+
+> Sem `GCS_EXPORT_BUCKET` a API sobe normalmente; apenas os endpoints `/export`
+> respondem `502 STORAGE_ERROR`. Todo o resto funciona.
 
 **Gerando um `JWT_SECRET` seguro:**
 ```bash
@@ -275,6 +280,19 @@ curl http://localhost:8080/v1/searches/<id>/result \
   -H "Authorization: Bearer $TOKEN"
 ```
 
+### 7. Exportar em CSV
+
+Exige o bucket configurado — veja [Exportação de dados](#exportação-de-dados-csv).
+A resposta traz uma URL temporária; baixe o arquivo dela:
+
+```bash
+curl "http://localhost:8080/v1/sessions/<id-da-sessao>/export?format=csv" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+Chamar de novo sem nenhuma pesquisa nova reaproveita o mesmo arquivo no bucket e
+devolve apenas uma URL nova — confira em `SELECT * FROM data_exports`.
+
 ---
 
 ## Endpoints principais
@@ -293,13 +311,110 @@ curl http://localhost:8080/v1/searches/<id>/result \
 | `POST` | `/v1/searches` | JWT (`ADMIN`/`ANALYST`) | Enfileira busca de veículo |
 | `GET` | `/v1/searches/{id}/stream` | JWT | Progresso da busca (SSE) |
 | `GET` | `/v1/searches/{id}/result` | JWT | Resultado completo |
-| `GET` | `/v1/searches/{id}/export` | JWT (`ADMIN`/`ANALYST`) | Exporta para PDF/CSV |
+| `GET` | `/v1/searches/{id}/export` | JWT (`ADMIN`/`ANALYST`) | Exporta a ficha de um veículo (`?format=csv`) |
+| `GET` | `/v1/sessions/{id}/export` | JWT (`ADMIN`/`ANALYST`) | Exporta o comparativo da sessão inteira (`?format=csv`) |
 | `POST` | `/v1/admin/vehicles/import` | JWT (`ADMIN`) | Popula catálogo via FIPE |
 | `GET` | `/v1/admin/vehicles/import/status` | JWT (`ADMIN`) | Status da importação |
 
 **Roles disponíveis**: `ADMIN`, `ANALYST`, `VIEWER`.
 
 > O Swagger UI lista todos os endpoints com schemas, exemplos e botão "Try it out": http://localhost:8080/swagger-ui.html
+
+---
+
+## Exportação de dados (CSV)
+
+Dois escopos, ambos com o mesmo formato de arquivo:
+
+| Endpoint | O que gera |
+|---|---|
+| `GET /v1/searches/{id}/export?format=csv` | A ficha técnica de um veículo |
+| `GET /v1/sessions/{id}/export?format=csv` | Todas as pesquisas concluídas da sessão, num arquivo só |
+
+A resposta **não é o arquivo**, e sim uma URL temporária de download direto do bucket:
+
+```json
+{ "downloadUrl": "https://storage.googleapis.com/...", "expiresAt": "2026-08-22T22:00:00Z" }
+```
+
+`format=pdf` está previsto no contrato e responde `501` até a segunda etapa da feature.
+
+### Formato do arquivo
+
+CSV em **RFC 4180** (vírgula, CRLF, aspas duplas) e **UTF-8 com BOM** — o BOM é o que
+faz o Excel respeitar os acentos, e as ferramentas de BI o ignoram.
+
+O layout é **long/tidy**: uma linha por campo, com oito colunas fixas.
+
+```csv
+marca,modelo,versao,ano_modelo,categoria,campo,valor,fonte
+Toyota,Corolla Cross,XRE,2026,Motor e Transmissão,Potência,177 cv,OFFICIAL
+Toyota,Corolla Cross,XRE,2026,Motor e Transmissão,Torque,"21,0 kgfm",REVIEW
+Toyota,Corolla Cross,XRE,2026,Rodas,Aro (polegadas),18,OFFICIAL
+Toyota,Corolla Cross,XRE,2026,Rodas,Pneus Run-Flat,Dado não encontrado,ESTIMATED
+```
+
+Por que não uma coluna por campo: a ficha canônica tem 14 categorias e mais de 250
+campos, e cada revisão do prompt acrescenta outros. Em formato wide, as colunas
+mudariam sozinhas e quebrariam dashboards já montados — aqui o schema é fixo e o
+pivot de `categoria`/`campo` fica a cargo da ferramenta de BI.
+
+Detalhes que valem saber:
+
+- Campos sem resposta aparecem como `Dado não encontrado` / `ESTIMATED`, de propósito:
+  é assim que se mede a cobertura de uma pesquisa. Filtrar depois é trivial.
+- Na exportação de sessão, se o mesmo veículo foi pesquisado mais de uma vez, vale a
+  pesquisa concluída mais recentemente.
+- O arquivo traz só dados do veículo — nada de `search_id`, status ou timestamps.
+
+### Configurando o bucket
+
+1. Crie o bucket no GCP (region única basta; não precisa ser público).
+2. Crie uma service account com `roles/storage.objectAdmin` **no bucket** e baixe a
+   chave JSON.
+
+   > A assinatura de URL V4 precisa de uma chave privada. Uma service account **com
+   > chave JSON** assina localmente. Se a aplicação rodar apenas com a credencial do
+   > metadata server (Cloud Run sem chave), a assinatura passa a exigir
+   > `roles/iam.serviceAccountTokenCreator` e o fluxo IAM SignBlob.
+
+3. Preencha `GCS_EXPORT_BUCKET` e `GCP_PROJECT_ID` no `.env`.
+4. Salve a chave como `gcp-credentials.json` na raiz do projeto — já está no
+   `.gitignore` e no `.dockerignore`.
+5. Habilite a montagem da credencial no Compose:
+
+```bash
+cp docker-compose.override.yml.example docker-compose.override.yml
+```
+
+O Compose aplica o override automaticamente, sem `-f` extra.
+
+### CORS do bucket (só se o download for por `fetch`)
+
+A `downloadUrl` aponta para o `storage.googleapis.com`, não para a API — então o CORS
+que vale ali é o **do bucket**, e a configuração da API não tem efeito nenhum sobre ele.
+
+Se o app abrir a URL em nova aba, via `window.location` ou `<a href>`, não há
+preflight e nada precisa ser feito. Já se o download for por `fetch`/XHR (para
+mostrar um progresso, por exemplo), configure o bucket:
+
+```bash
+gcloud storage buckets update gs://SEU-BUCKET --cors-file=cors-bucket.json
+```
+
+Com `cors-bucket.json` assim (ajuste as origens para as do seu frontend):
+
+```json
+[{ "origin": ["http://localhost:8081"], "method": ["GET"], "responseHeader": ["Content-Type", "Content-Disposition"], "maxAgeSeconds": 3600 }]
+```
+
+### Retenção dos arquivos
+
+O `DataRetentionScheduler` apaga `searches` antigas, mas **não** apaga objetos do
+bucket — configure *Object Lifecycle Management* no GCS (delete após 730 dias, o
+mesmo valor de `RETENTION_SEARCHES_DAYS`). É configuração de infra, sem código.
+A tabela `data_exports` é apenas o registro de controle: guarda o hash do conteúdo
+para reaproveitar um arquivo já enviado em vez de subir outro igual.
 
 ---
 
@@ -316,7 +431,7 @@ Controlado pela variável `SPRING_PROFILES_ACTIVE` no `.env`.
 
 ## Deploy em produção
 
-Stack de produção: **Render (plano pago) para a API** + **Supabase (free tier) para o Postgres**. Dois provedores, mas ambos com painel próprio, HTTPS automático e deploy via `git push` — nenhum passo manual de servidor (VM, firewall, certificado) é necessário.
+Stack de produção: **Railway para a API** + **Supabase (free tier) para o Postgres**. Dois provedores, mas ambos com painel próprio, HTTPS automático e deploy via `git push` — nenhum passo manual de servidor (VM, firewall, certificado) é necessário.
 
 ### 1. Banco (Supabase)
 
@@ -328,34 +443,65 @@ Stack de produção: **Render (plano pago) para a API** + **Supabase (free tier)
    ```
    `sslmode=require` é obrigatório — o Supabase não aceita conexão sem TLS.
 
-### 2. API (Render)
+### 2. API (Railway)
 
-1. No [dashboard do Render](https://dashboard.render.com), **New → Web Service**, conecte o repositório `spectrum-ai-api-rest`.
-2. Ambiente: **Docker** (o Render detecta o `Dockerfile` da raiz automaticamente, sem configuração extra).
-3. Escolha um plano pago (ex.: Starter) — isso remove o sleep por inatividade do plano free.
-4. Em **Environment**, configure as variáveis (mesmas do `.env`, valores de produção):
+1. No [dashboard do Railway](https://railway.app), **New Project → Deploy from GitHub repo**, escolha o repositório `spectrum-ai-api-rest`. O Railway detecta o `Dockerfile` da raiz sozinho — não há build command a configurar.
+2. Na aba **Variables**, configure (mesmas do `.env`, valores de produção):
 
    | Variável | Valor |
    |---|---|
    | `SPRING_PROFILES_ACTIVE` | `prod` |
-   | `DATABASE_URL` | connection string do Supabase (passo 1) |
+   | `DATABASE_URL` | connection string do Supabase (passo 1), **com o prefixo `jdbc:`** |
    | `DATABASE_USER` | `postgres` |
    | `DATABASE_PASSWORD` | senha do projeto Supabase |
    | `JWT_SECRET` | gerar com `openssl rand -base64 64` |
    | `GEMINI_API_KEY` | sua chave da Gemini API |
    | `FIPE_API_TOKEN` | seu token da FIPE API |
-   | `CORS_ALLOWED_ORIGINS` | origem do app mobile em produção |
+   | `CORS_ALLOWED_ORIGINS` | origem do app mobile em produção (exata, sem curinga) |
+   | `GCS_EXPORT_BUCKET` | nome do bucket de exportações |
+   | `GCP_PROJECT_ID` | id do projeto GCP |
+   | `GCP_CREDENTIALS_JSON` | service account em base64 (passo 3) |
 
-   `REQUIRE_HTTPS` já é `true` por padrão em `application-prod.properties`, e o Render já envia `X-Forwarded-Proto` corretamente — nenhum ajuste extra de proxy é necessário (diferente de um deploy em VM própria, onde isso teria que ser configurado manualmente).
+   > **Não adicione o plugin PostgreSQL do Railway.** O banco aqui é o Supabase, e o
+   > plugin injeta uma variável `DATABASE_URL` própria no formato
+   > `postgresql://user:senha@host/railway` — que o Spring não aceita e que
+   > sobrescreveria a do Supabase, derrubando a aplicação no boot.
+
+   `PORT` é injetada pelo Railway e a aplicação já a respeita — não defina manualmente.
+
+3. **Credencial do GCP.** O Railway não monta arquivos de secret, então
+   `GOOGLE_APPLICATION_CREDENTIALS` (que aponta para um caminho em disco) não serve lá.
+   Passe o JSON inteiro em `GCP_CREDENTIALS_JSON` — a aplicação aceita texto puro ou
+   base64. Use **base64**: o painel trata o valor como uma linha só, e a chave privada
+   tem quebras de linha.
+
+   ```powershell
+   [Convert]::ToBase64String([IO.File]::ReadAllBytes("gcp-credentials.json")) | Set-Clipboard
+   ```
+
+   ```bash
+   base64 -w0 gcp-credentials.json
+   ```
+
+   Na primeira exportação o log confirma qual identidade foi usada:
+   `GCS autenticado pela credencial inline (service account spectrum-exports@...)`.
+
+4. **Expor a API**: *Settings → Networking → Generate Domain*. O Railway dá HTTPS e envia
+   `X-Forwarded-Proto`, então `REQUIRE_HTTPS=true` (default do profile `prod`) já funciona
+   sem ajuste de proxy. Em *Settings → Deploy*, aponte o healthcheck para
+   `/actuator/health` — assim um deploy que sobe quebrado não substitui a versão no ar.
 5. Deploy automático: qualquer `git push` na branch conectada builda e publica a nova versão sozinho — não há passo manual de deploy.
 
 ### Verificando
 
 ```bash
-curl https://<seu-servico>.onrender.com/actuator/health
+curl https://<seu-servico>.up.railway.app/actuator/health
 ```
 
-Depois, atualize `EXPO_PUBLIC_API_URL` no app mobile para essa URL.
+Depois, atualize `EXPO_PUBLIC_API_URL` no app mobile para essa URL — e acrescente essa
+origem em `CORS_ALLOWED_ORIGINS`. Se o app baixar o CSV por `fetch`, a origem de produção
+também precisa entrar no CORS **do bucket**, que é configuração separada
+(veja [Exportação de dados](#exportação-de-dados-csv)).
 
 ---
 
@@ -388,7 +534,8 @@ src/main/java/com/spectrumai/backend/
 ├── company/       # Gestão de empresas (multi-tenant)
 ├── user/          # Gestão de usuários e roles
 ├── session/       # Sessões de análise competitiva
-├── search/        # Buscas de veículos e resultados (SSE, export)
+├── search/        # Buscas de veículos e resultados (SSE)
+├── export/        # Exportação CSV/PDF para BI + armazenamento no GCS
 ├── vehicles/      # Catálogo de veículos + importação FIPE
 ├── insights/      # Geração de insights via IA
 ├── ai/            # Integração com provedores de IA (Gemini)
@@ -435,6 +582,40 @@ Para criar uma nova migration, adicione um arquivo com o próximo número de ver
 
 **Erro de checksum do Flyway após editar uma migration já aplicada**
 - Set `FLYWAY_REPAIR_ON_START=true` no `.env` e suba novamente. Volte para `false` em seguida.
+
+**Erro de CORS chamando a API a partir do app**
+
+Confirme primeiro qual é a lista ativa — ela é logada no boot:
+
+```bash
+docker compose logs api | grep "CORS configurado"
+```
+
+- `origins=[]` → nenhuma origem permitida, tudo responde `403 Invalid CORS request`.
+  A partir da versão atual isso derruba o boot com mensagem explícita, mas se aparecer:
+  a causa é `CORS_ALLOWED_ORIGINS` definida **vazia**. O default do Spring
+  (`${VAR:origens}`) só vale quando a variável **não existe** — passar vazio não cai
+  no default, o vazio vence. Comente a linha no `.env` em vez de deixá-la sem valor.
+- Origem ausente da lista → em dev os padrões já cobrem `localhost` em qualquer porta,
+  o emulador Android (`10.0.2.2`) e as faixas de rede local (`192.168.*`, `10.*`,
+  `172.16.*`), que é como o celular físico enxerga a máquina. Se sua origem for outra,
+  acrescente em `CORS_ALLOWED_ORIGINS`.
+- Preflight recusado por header → o navegador diz qual (*"Request header field X is not
+  allowed"*). Acrescente-o em `CORS_ALLOWED_HEADERS`.
+
+Para reproduzir sem o app, simule o preflight trocando a origem:
+
+```bash
+curl -i -X OPTIONS http://localhost:8080/v1/sessions -H "Origin: http://192.168.0.7:8081" -H "Access-Control-Request-Method: GET"
+```
+
+`200` com `Access-Control-Allow-Origin` de volta = liberado; `403` = origem recusada.
+
+**Erro de CORS ao baixar o CSV da `downloadUrl`**
+- Esse CORS não é da API: quem responde é o `storage.googleapis.com`. Se o download for
+  feito por `fetch`/XHR no app web, é preciso configurar CORS **no bucket** (veja
+  [Exportação de dados](#exportação-de-dados-csv)). Abrir a URL em nova aba ou via
+  `window.location` não dispara CORS e funciona sem nenhuma configuração.
 
 **Quero zerar o banco e começar do zero**
 ```bash

@@ -59,3 +59,8 @@ hs_err_pid*
 coverage/
 jacoco.exec
 .claude
+
+# Credenciais GCP (service account para o bucket de exportacoes) - NUNCA commitar
+gcp-credentials.json
+*-credentials.json
+docker-compose.override.yml

@@ -9,3 +9,6 @@ target/
 .git/
 .gitignore
 docker-compose.yml
+
+gcp-credentials.json
+*-credentials.json
