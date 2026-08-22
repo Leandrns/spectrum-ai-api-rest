@@ -38,8 +38,8 @@ out/
 Thumbs.db
 
 ### Storage / Runtime ###
-storage/
-tmp/
+/storage/
+/tmp/
 *.pid
 
 ### Env / segredos locais ###
