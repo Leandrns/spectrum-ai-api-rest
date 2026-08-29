@@ -13,6 +13,7 @@ import com.spectrumai.backend.export.repository.DataExportRepository;
 import com.spectrumai.backend.export.spec.SpecsFlattener;
 import com.spectrumai.backend.export.storage.ExportStorage;
 import com.spectrumai.backend.export.writer.CsvExportWriter;
+import com.spectrumai.backend.export.writer.ExportWriter;
 import com.spectrumai.backend.export.writer.ExportWriterResolver;
 import com.spectrumai.backend.search.dto.SearchExportResponse;
 import com.spectrumai.backend.search.model.Search;
@@ -68,11 +69,15 @@ class ExportServiceImplTest {
                 new AppProperties.Storage(
                         new AppProperties.Storage.Gcs("bucket-de-teste", "projeto", 60, "exports", null)));
 
+        ExportWriter pdfWriter = mock(ExportWriter.class);
+        when(pdfWriter.format()).thenReturn(ExportFormat.PDF);
+        when(pdfWriter.write(any())).thenReturn("%PDF-1.4-sample".getBytes(StandardCharsets.UTF_8));
+
         service = new ExportServiceImpl(
                 searchRepository,
                 exportRepository,
                 new SpecsFlattener(new ObjectMapper()),
-                new ExportWriterResolver(List.of(new CsvExportWriter())),
+                new ExportWriterResolver(List.of(new CsvExportWriter(), pdfWriter)),
                 storage,
                 auditService,
                 properties);
@@ -164,14 +169,21 @@ class ExportServiceImplTest {
     }
 
     @Test
-    @DisplayName("PDF ainda não tem writer — responde 501 em vez de gerar arquivo vazio")
-    void pdfIsNotImplementedYet() {
+    @DisplayName("exporta a pesquisa em PDF e faz o upload com content-type application/pdf")
+    void exportsSearchInPdf() {
         Search search = search("Toyota", "Corolla", "Altis", (short) 2024, OffsetDateTime.now(), "17");
 
-        assertThatThrownBy(() -> service.exportSearch(search, ExportFormat.PDF))
-                .isInstanceOf(BusinessException.class)
-                .satisfies(e -> assertThat(((BusinessException) e).getStatus())
-                        .isEqualTo(HttpStatus.NOT_IMPLEMENTED));
+        SearchExportResponse response = service.exportSearch(search, ExportFormat.PDF);
+
+        assertThat(response.downloadUrl()).isEqualTo("https://storage.googleapis.com/assinada");
+        assertThat(response.expiresAt()).isAfter(OffsetDateTime.now().plusMinutes(59));
+
+        ArgumentCaptor<String> contentTypeCaptor = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<String> filenameCaptor = ArgumentCaptor.forClass(String.class);
+        verify(storage).upload(anyString(), any(), contentTypeCaptor.capture(), filenameCaptor.capture());
+
+        assertThat(contentTypeCaptor.getValue()).isEqualTo("application/pdf");
+        assertThat(filenameCaptor.getValue()).isEqualTo("spectrum_toyota_corolla_2024.pdf");
     }
 
     @Test
@@ -206,7 +218,7 @@ class ExportServiceImplTest {
                   "Motor e Transmissão": {
                     "Potência": {"value": "177 cv", "source": "OFFICIAL"},
                     "Torque": {"value": "21,0 kgfm", "source": "REVIEW"},
-                    "Economia de Combustível": {"value": "Dado não encontrado", "source": "ESTIMATED"}
+                    "Economia de Combustível": {"value": "Dado não encontrado", "source": "NOT_FOUND"}
                   },
                   "Rodas": {
                     "Aro (polegadas)": {"value": "18", "source": "OFFICIAL"},
@@ -221,7 +233,7 @@ class ExportServiceImplTest {
                 marca,modelo,versao,ano_modelo,categoria,campo,valor,fonte\r
                 Toyota,Corolla Cross,XRE,2026,Motor e Transmissão,Potência,177 cv,OFFICIAL\r
                 Toyota,Corolla Cross,XRE,2026,Motor e Transmissão,Torque,"21,0 kgfm",REVIEW\r
-                Toyota,Corolla Cross,XRE,2026,Motor e Transmissão,Economia de Combustível,Dado não encontrado,ESTIMATED\r
+                Toyota,Corolla Cross,XRE,2026,Motor e Transmissão,Economia de Combustível,Dado não encontrado,NOT_FOUND\r
                 Toyota,Corolla Cross,XRE,2026,Rodas,Aro (polegadas),18,OFFICIAL\r
                 Toyota,Corolla Cross,XRE,2026,Rodas,Pneus Run-Flat,"Não, equipamento ""padrão"" apenas",REVIEW\r
                 """);

@@ -76,7 +76,8 @@ public class Search implements TenantAware {
      * Specs estruturadas no schema JSON da ficha técnica canônica (Engine & Transmission,
      * Wheels, Connectivity, Ice Line Up, Air conditioning, Safety, High tech, Global Closing,
      * Trim, SunRoof, Seats, Lights, 4X4, Others). Cada campo possui {@code value} e
-     * {@code source}; campos não encontrados retornam {@code "Dado não encontrado"} em value.
+     * {@code source} (ver {@link SourceType}); campos não encontrados retornam
+     * {@code "Dado não encontrado"} em value e {@code NOT_FOUND} em source.
      */
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb")

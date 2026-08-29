@@ -73,8 +73,7 @@ public class SearchController {
             summary = "Exporta a ficha técnica da pesquisa",
             description = """
                     Gera o arquivo, armazena no bucket e devolve uma URL de download temporária.
-                    O CSV sai em formato long (uma linha por categoria/campo), pronto para
-                    ferramentas de BI. Formatos: `csv` (padrão) e `pdf` (ainda indisponível).""")
+                    Formatos disponíveis: `csv` (padrão, formato long para BI) e `pdf` (layout de ficha técnica).""")
     @GetMapping("/{id}/export")
     @PreAuthorize("hasAnyRole('ADMIN','ANALYST')")
     public SearchExportResponse export(
