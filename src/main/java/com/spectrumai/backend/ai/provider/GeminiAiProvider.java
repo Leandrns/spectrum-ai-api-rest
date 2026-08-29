@@ -40,6 +40,37 @@ public class GeminiAiProvider implements AiProvider {
 
     private static final Pattern JSON_FENCE = Pattern.compile("```(?:json)?\\s*([\\s\\S]*?)```", Pattern.MULTILINE);
 
+    /**
+     * Hosts que o prompt {@code vehicle_spec_search} (v3) proíbe: redes sociais,
+     * classificados sem braço editorial, wikis colaborativas e imprensa/reguladores
+     * estrangeiros — estes últimos porque descrevem o veículo de outro mercado.
+     *
+     * <p>A citação NÃO é filtrada. Remover a fonte esconderia a procedência sem
+     * corrigir o dado que veio dela, que é o oposto de transparência. O aviso no
+     * log é o que permite detectar que o prompt foi desobedecido e agir na próxima
+     * revisão dele.
+     *
+     * <p>O casamento é por sufixo de host, então {@code toyota.com} não colide com
+     * {@code toyota.com.br}. Portais com conteúdo editorial permitido (Webmotors,
+     * iCarros) ficam de fora: só as páginas de anúncio são proibidas, e a URL não
+     * distingue as duas.
+     */
+    private static final Set<String> DISALLOWED_SOURCE_HOSTS = Set.of(
+            // Redes sociais e conteúdo de usuário
+            "facebook.com", "instagram.com", "twitter.com", "x.com", "tiktok.com",
+            "threads.net", "pinterest.com", "reddit.com", "quora.com",
+            // Wikis colaborativas
+            "wikipedia.org", "fandom.com",
+            // Classificados sem curadoria editorial
+            "olx.com.br", "mercadolivre.com.br",
+            // Imprensa e bases estrangeiras
+            "edmunds.com", "kbb.com", "cars.com", "caranddriver.com",
+            "motortrend.com", "autoevolution.com", "carfax.com",
+            // Reguladores estrangeiros
+            "fueleconomy.gov", "nhtsa.gov", "iihs.org", "euroncap.com",
+            // Sites institucionais fora do Brasil
+            "toyota.com", "ford.com", "chevrolet.com", "vw.com", "hyundaiusa.com");
+
     private final AppProperties properties;
     private final ObjectMapper objectMapper;
     private final Client geminiClient;
@@ -92,13 +123,15 @@ public class GeminiAiProvider implements AiProvider {
 
         JsonNode structured = parseStructuredOutput(text);
         List<AiResponse.Citation> citations = extractCitations(response);
+        warnOnDisallowedSources(citations);
         injectSources(structured, citations);
 
         int tokens = response.usageMetadata()
                 .flatMap(u -> u.totalTokenCount())
                 .orElse(0);
 
-        log.info("Gemini respondeu em {}ms (tokens={}, citations={})", latency, tokens, citations.size());
+        log.info("Gemini ({}) respondeu em {}ms (tokens={}, citations={})",
+                gemini.model(), latency, tokens, citations.size());
         return new AiResponse(structured, citations, latency, tokens);
     }
 
@@ -185,6 +218,37 @@ public class GeminiAiProvider implements AiProvider {
             log.warn("Nenhuma citation extraída do groundingMetadata — groundingChunks ausente na resposta");
         }
         return citations;
+    }
+
+    /**
+     * Sinaliza no log as citações que vieram de {@link #DISALLOWED_SOURCE_HOSTS}.
+     * Sem isto, a única forma de saber que o modelo consultou Facebook ou a ficha
+     * americana do veículo seria abrir cada resultado à mão.
+     */
+    private void warnOnDisallowedSources(List<AiResponse.Citation> citations) {
+        List<String> disallowed = citations.stream()
+                .map(AiResponse.Citation::sourceUrl)
+                .filter(this::isDisallowedSource)
+                .toList();
+        if (!disallowed.isEmpty()) {
+            log.warn("Gemini citou {} fonte(s) proibida(s) pelo prompt — revise o prompt ativo: {}",
+                    disallowed.size(), disallowed);
+        }
+    }
+
+    private boolean isDisallowedSource(String url) {
+        String host;
+        try {
+            host = URI.create(url).getHost();
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
+        if (host == null) {
+            return false;
+        }
+        String normalized = host.toLowerCase();
+        return DISALLOWED_SOURCE_HOSTS.stream()
+                .anyMatch(blocked -> normalized.equals(blocked) || normalized.endsWith("." + blocked));
     }
 
     private static final String NO_GROUNDING_MESSAGE =

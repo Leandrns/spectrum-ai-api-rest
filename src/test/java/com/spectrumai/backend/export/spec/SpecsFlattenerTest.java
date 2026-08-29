@@ -75,11 +75,11 @@ class SpecsFlattenerTest {
     @DisplayName("mantém os campos não encontrados — o BI usa isso para medir cobertura")
     void keepsNotFoundFields() {
         List<VehicleSpecRow> rows = flattener.flatten(searchWithSpecs("""
-                {"Rodas": {"Pneus Run-Flat": {"value": "Dado não encontrado", "source": "ESTIMATED"}}}"""));
+                {"Rodas": {"Pneus Run-Flat": {"value": "Dado não encontrado", "source": "NOT_FOUND"}}}"""));
 
         assertThat(rows).singleElement().satisfies(row -> {
             assertThat(row.valor()).isEqualTo("Dado não encontrado");
-            assertThat(row.fonte()).isEqualTo("ESTIMATED");
+            assertThat(row.fonte()).isEqualTo("NOT_FOUND");
         });
     }
 

@@ -206,7 +206,7 @@ class ExportServiceImplTest {
                   "Motor e Transmissão": {
                     "Potência": {"value": "177 cv", "source": "OFFICIAL"},
                     "Torque": {"value": "21,0 kgfm", "source": "REVIEW"},
-                    "Economia de Combustível": {"value": "Dado não encontrado", "source": "ESTIMATED"}
+                    "Economia de Combustível": {"value": "Dado não encontrado", "source": "NOT_FOUND"}
                   },
                   "Rodas": {
                     "Aro (polegadas)": {"value": "18", "source": "OFFICIAL"},
@@ -221,7 +221,7 @@ class ExportServiceImplTest {
                 marca,modelo,versao,ano_modelo,categoria,campo,valor,fonte\r
                 Toyota,Corolla Cross,XRE,2026,Motor e Transmissão,Potência,177 cv,OFFICIAL\r
                 Toyota,Corolla Cross,XRE,2026,Motor e Transmissão,Torque,"21,0 kgfm",REVIEW\r
-                Toyota,Corolla Cross,XRE,2026,Motor e Transmissão,Economia de Combustível,Dado não encontrado,ESTIMATED\r
+                Toyota,Corolla Cross,XRE,2026,Motor e Transmissão,Economia de Combustível,Dado não encontrado,NOT_FOUND\r
                 Toyota,Corolla Cross,XRE,2026,Rodas,Aro (polegadas),18,OFFICIAL\r
                 Toyota,Corolla Cross,XRE,2026,Rodas,Pneus Run-Flat,"Não, equipamento ""padrão"" apenas",REVIEW\r
                 """);

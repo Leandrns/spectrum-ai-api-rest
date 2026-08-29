@@ -28,6 +28,9 @@ services:
       JWT_EXPIRATION_MS: ${JWT_EXPIRATION_MS:-3600000}
       JWT_REFRESH_EXPIRATION_MS: ${JWT_REFRESH_EXPIRATION_MS:-604800000}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      # Default inline pelo mesmo motivo do CORS abaixo: `${VAR:-}` passaria a
+      # variavel vazia e anularia o default do application.properties.
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
       FIPE_API_TOKEN: ${FIPE_API_TOKEN:-}
       FIPE_API_BASE_URL: ${FIPE_API_BASE_URL:-https://fipe.parallelum.com.br/api/v2}
       FIPE_VEHICLE_TYPE: ${FIPE_VEHICLE_TYPE:-cars}

@@ -90,9 +90,9 @@ class CsvExportWriterTest {
     void preservesAccents() {
         byte[] bytes = writer.write(List.of(
                 new VehicleSpecRow("Toyota", "Corolla", "Altis", 2024,
-                        "Motor e Transmissão", "Potência", "Dado não encontrado", "ESTIMATED")));
+                        "Motor e Transmissão", "Potência", "Dado não encontrado", "NOT_FOUND")));
 
         String csv = new String(bytes, StandardCharsets.UTF_8);
-        assertThat(csv).contains("Motor e Transmissão,Potência,Dado não encontrado,ESTIMATED");
+        assertThat(csv).contains("Motor e Transmissão,Potência,Dado não encontrado,NOT_FOUND");
     }
 }
