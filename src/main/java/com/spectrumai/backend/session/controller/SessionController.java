@@ -59,9 +59,8 @@ public class SessionController {
             summary = "Exporta o comparativo da sessão",
             description = """
                     Reúne num único arquivo as fichas técnicas de todas as pesquisas concluídas
-                    da sessão — é a exportação pensada para comparar concorrentes no BI. Quando o
-                    mesmo veículo foi pesquisado mais de uma vez, vale a pesquisa mais recente.
-                    Formatos: `csv` (padrão) e `pdf` (ainda indisponível).""")
+                    da sessão. Quando o mesmo veículo foi pesquisado mais de uma vez, vale a pesquisa mais recente.
+                    Formatos disponíveis: `csv` (padrão, formato long para BI) e `pdf` (layout de ficha técnica).""")
     @GetMapping("/{id}/export")
     @PreAuthorize("hasAnyRole('ADMIN','ANALYST')")
     public SearchExportResponse export(
