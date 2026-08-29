@@ -185,24 +185,28 @@
         }
 
         .spec-value {
-            width: 36%;
+            width: 34%;
             font-weight: 700;
             color: #0f172a;
             font-size: 7.5pt;
         }
 
         .spec-source {
-            width: 14%;
+            width: 18%;
             text-align: right;
         }
 
+        /* Sem uppercase e sem quebra: "Não encontrado" é o rótulo mais longo e,
+           se quebrar em duas linhas, deixa só as linhas de dado ausente mais
+           altas que as demais — some o alinhamento da tabela. O nowrap faz a
+           coluna reservar a largura do maior rótulo, uma vez, para todas. */
         .badge-source {
             font-size: 5.5pt;
             font-weight: 700;
-            text-transform: uppercase;
             padding: 1.5px 3.5px;
             border-radius: 2px;
             display: inline-block;
+            white-space: nowrap;
         }
 
         .source-official {
@@ -217,10 +221,20 @@
             border: 1px solid #fde68a;
         }
 
+        /* Estimado é dado inferido — sinaliza cautela. */
         .source-estimated {
+            background-color: #ffe4e6;
+            color: #be123c;
+            border: 1px solid #fecdd3;
+            font-style: italic;
+        }
+
+        /* Não encontrado é ausência de dado, não confiança baixa: fica neutro,
+           fora da escala de cores, para não competir com o que foi encontrado. */
+        .source-not-found {
             background-color: #f1f5f9;
             color: #64748b;
-            font-style: italic;
+            border: 1px solid #e2e8f0;
         }
     </style>
 </head>
@@ -231,8 +245,8 @@
         <table class="header-table">
             <tr>
                 <td class="header-title">
-                    <h1 th:text="${vehicleData.vehicle.brand + ' ' + vehicleData.vehicle.model}">FORD RANGER RAPTOR</h1>
-                    <div class="subtitle" th:text="${vehicleData.vehicle.trim + (vehicleData.vehicle.year != '' ? ' • ' + vehicleData.vehicle.year : '')}">3.0 V6 Bi-Turbo • 2025</div>
+                    <h1 th:text="${vehicleData.vehicle['brand'] + ' ' + vehicleData.vehicle['model']}">FORD RANGER RAPTOR</h1>
+                    <div class="subtitle" th:text="${vehicleData.vehicle['trim'] + (vehicleData.vehicle['year'] != '' ? ' • ' + vehicleData.vehicle['year'] : '')}">3.0 V6 Bi-Turbo • 2025</div>
                 </td>
                 <td class="header-meta">
                     <div>Emissão: <span th:text="${#temporals.format(generatedAt, 'dd/MM/yyyy HH:mm')}">29/08/2026 11:30</span></div>
@@ -243,25 +257,29 @@
         <!-- Cards de Destaque Técnico (Quick Specs) -->
         <table class="quick-specs-table" th:if="${vehicleData.highlights != null and not vehicleData.highlights.isEmpty()}">
             <tr>
-                <td class="quick-spec-card" th:if="${vehicleData.highlights.motor != null}">
+                <!-- Acesso por colchetes, não por ponto: `highlights.motor` em
+                     SpringEL estoura quando a chave não existe no Map, e
+                     `extractHighlights` só preenche o que a pesquisa encontrou.
+                     `highlights['motor']` devolve null e o th:if some com o card. -->
+                <td class="quick-spec-card" th:if="${vehicleData.highlights['motor'] != null}">
                     <div class="quick-spec-label">Motor</div>
-                    <div class="quick-spec-value" th:text="${vehicleData.highlights.motor}">3.0 V6 Bi-Turbo</div>
+                    <div class="quick-spec-value" th:text="${vehicleData.highlights['motor']}">3.0 V6 Bi-Turbo</div>
                 </td>
-                <td class="quick-spec-card" th:if="${vehicleData.highlights.potencia != null}">
+                <td class="quick-spec-card" th:if="${vehicleData.highlights['potencia'] != null}">
                     <div class="quick-spec-label">Potência</div>
-                    <div class="quick-spec-value" th:text="${vehicleData.highlights.potencia}">397 cv</div>
+                    <div class="quick-spec-value" th:text="${vehicleData.highlights['potencia']}">397 cv</div>
                 </td>
-                <td class="quick-spec-card" th:if="${vehicleData.highlights.torque != null}">
+                <td class="quick-spec-card" th:if="${vehicleData.highlights['torque'] != null}">
                     <div class="quick-spec-label">Torque</div>
-                    <div class="quick-spec-value" th:text="${vehicleData.highlights.torque}">59.4 kgfm</div>
+                    <div class="quick-spec-value" th:text="${vehicleData.highlights['torque']}">59.4 kgfm</div>
                 </td>
-                <td class="quick-spec-card" th:if="${vehicleData.highlights.transmissao != null}">
+                <td class="quick-spec-card" th:if="${vehicleData.highlights['transmissao'] != null}">
                     <div class="quick-spec-label">Câmbio</div>
-                    <div class="quick-spec-value" th:text="${vehicleData.highlights.transmissao}">Aut. 10 marchas</div>
+                    <div class="quick-spec-value" th:text="${vehicleData.highlights['transmissao']}">Aut. 10 marchas</div>
                 </td>
-                <td class="quick-spec-card" th:if="${vehicleData.highlights.tracao != null}">
+                <td class="quick-spec-card" th:if="${vehicleData.highlights['tracao'] != null}">
                     <div class="quick-spec-label">Tração</div>
-                    <div class="quick-spec-value" th:text="${vehicleData.highlights.tracao}">4WD Integral</div>
+                    <div class="quick-spec-value" th:text="${vehicleData.highlights['tracao']}">4WD Integral</div>
                 </td>
             </tr>
         </table>
@@ -276,11 +294,11 @@
                         <tbody>
                             <tr th:each="row : ${cat.specs}">
                                 <td class="spec-label" th:text="${row.campo}">Cilindrada</td>
-                                <td class="spec-value" th:text="${row.valor != null and not row.valor.isBlank() ? row.valor : '-'}">2.956 cm³</td>
+                                <td class="spec-value" th:text="${row.valor}">2.956 cm³</td>
                                 <td class="spec-source">
                                     <span class="badge-source"
-                                          th:classappend="${row.fonte == 'OFFICIAL' ? 'source-official' : (row.fonte == 'REVIEW' ? 'source-review' : 'source-estimated')}"
-                                          th:text="${row.fonte != null ? row.fonte : 'OFFICIAL'}">OFFICIAL</span>
+                                          th:classappend="${row.fonteClass}"
+                                          th:text="${row.fonteLabel}">Oficial</span>
                                 </td>
                             </tr>
                         </tbody>
@@ -296,11 +314,11 @@
                         <tbody>
                             <tr th:each="row : ${cat.specs}">
                                 <td class="spec-label" th:text="${row.campo}">Aro (polegadas)</td>
-                                <td class="spec-value" th:text="${row.valor != null and not row.valor.isBlank() ? row.valor : '-'}">17</td>
+                                <td class="spec-value" th:text="${row.valor}">17</td>
                                 <td class="spec-source">
                                     <span class="badge-source"
-                                          th:classappend="${row.fonte == 'OFFICIAL' ? 'source-official' : (row.fonte == 'REVIEW' ? 'source-review' : 'source-estimated')}"
-                                          th:text="${row.fonte != null ? row.fonte : 'OFFICIAL'}">OFFICIAL</span>
+                                          th:classappend="${row.fonteClass}"
+                                          th:text="${row.fonteLabel}">Oficial</span>
                                 </td>
                             </tr>
                         </tbody>

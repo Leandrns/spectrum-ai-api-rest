@@ -13,6 +13,7 @@ import com.spectrumai.backend.export.repository.DataExportRepository;
 import com.spectrumai.backend.export.spec.SpecsFlattener;
 import com.spectrumai.backend.export.storage.ExportStorage;
 import com.spectrumai.backend.export.writer.CsvExportWriter;
+import com.spectrumai.backend.export.writer.ExportWriter;
 import com.spectrumai.backend.export.writer.ExportWriterResolver;
 import com.spectrumai.backend.search.dto.SearchExportResponse;
 import com.spectrumai.backend.search.model.Search;

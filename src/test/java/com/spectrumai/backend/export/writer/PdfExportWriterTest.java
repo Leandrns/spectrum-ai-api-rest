@@ -5,7 +5,7 @@ import com.spectrumai.backend.export.dto.VehicleSpecRow;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.thymeleaf.TemplateEngine;
+import org.thymeleaf.spring6.SpringTemplateEngine;
 import org.thymeleaf.templatemode.TemplateMode;
 import org.thymeleaf.templateresolver.ClassLoaderTemplateResolver;
 
@@ -26,7 +26,12 @@ class PdfExportWriterTest {
         templateResolver.setTemplateMode(TemplateMode.HTML);
         templateResolver.setCharacterEncoding("UTF-8");
 
-        TemplateEngine templateEngine = new TemplateEngine();
+        // SpringTemplateEngine, não o TemplateEngine cru: o engine padrão do
+        // Thymeleaf avalia ${...} com OGNL, que não está no classpath (o
+        // starter traz SpringEL). Além de fazer o teste rodar, isso o alinha
+        // ao bean que o Spring injeta em produção — é a mesma linguagem de
+        // expressão validando o template.
+        SpringTemplateEngine templateEngine = new SpringTemplateEngine();
         templateEngine.setTemplateResolver(templateResolver);
 
         writer = new PdfExportWriter(templateEngine);
@@ -71,5 +76,48 @@ class PdfExportWriterTest {
         // Valida o número mágico padrão de cabeçalho do PDF (%PDF-)
         String header = new String(pdfBytes, 0, 5, StandardCharsets.US_ASCII);
         assertThat(header).isEqualTo("%PDF-");
+    }
+
+    private VehicleSpecRow row(String categoria, String campo, String valor, String fonte) {
+        return new VehicleSpecRow("Ford", "Ranger", "Raptor", 2026, categoria, campo, valor, fonte);
+    }
+
+    @Test
+    @DisplayName("não quebra quando a pesquisa não preencheu nenhum dado de destaque")
+    void rendersWithoutHighlights() {
+        // Nenhum dos campos que viram card de destaque (motor, potência, torque,
+        // câmbio, tração) está presente. Com acesso por ponto no template, o
+        // SpringEL estourava aqui — chave ausente em Map não devolve null.
+        byte[] pdf = writer.write(List.of(row("Rodas", "Aro (polegadas)", "17", "OFFICIAL")));
+
+        assertThat(new String(pdf, 0, 5, StandardCharsets.US_ASCII)).isEqualTo("%PDF-");
+    }
+
+    @Test
+    @DisplayName("NOT_FOUND ganha rótulo e estilo próprios, sem se misturar a estimado")
+    void notFoundHasItsOwnBadge() {
+        String html = writer.renderHtml(List.of(
+                row("Rodas", "Pneus Run-Flat", "Dado não encontrado", "NOT_FOUND"),
+                row("Rodas", "Aro (polegadas)", "17 (estimado a partir da versão XL)", "ESTIMATED")));
+
+        assertThat(html).contains("source-not-found").contains("Não encontrado");
+        assertThat(html).contains("source-estimated").contains("Estimado");
+    }
+
+    @Test
+    @DisplayName("procedência ausente nunca é apresentada como oficial")
+    void neverClaimsOfficialForUnknownSource() {
+        String html = writer.renderHtml(List.of(row("Rodas", "Aro (polegadas)", "17", null)));
+
+        assertThat(html).contains("Não informado");
+        assertThat(html).doesNotContain(">Oficial<");
+    }
+
+    @Test
+    @DisplayName("campo sem valor cai para o traço, sem célula vazia na ficha")
+    void blankValueFallsBackToDash() {
+        String html = writer.renderHtml(List.of(row("Rodas", "Aro (polegadas)", "  ", "NOT_FOUND")));
+
+        assertThat(html).contains(">-<");
     }
 }

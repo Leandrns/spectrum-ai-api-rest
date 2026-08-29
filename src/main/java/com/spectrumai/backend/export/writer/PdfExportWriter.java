@@ -32,6 +32,31 @@ public class PdfExportWriter implements ExportWriter {
 
     private static final String TEMPLATE_PATH = "export/vehicle_spec_pdf";
 
+    /** Valor exibido quando a pesquisa não trouxe conteúdo para o campo. */
+    private static final String EMPTY_VALUE = "-";
+
+    /**
+     * Rótulo e classe CSS de cada tag de procedência.
+     *
+     * <p>Fica aqui, e não em ternários no template, por dois motivos: a decisão
+     * era duplicada nas duas colunas do grid — bastava esquecer uma para o PDF
+     * sair inconsistente — e uma tag nova precisava ser lembrada nos dois
+     * lugares. Foi o que aconteceu com {@code NOT_FOUND}, que caía no ramo
+     * "else" e era pintada como estimada.
+     */
+    private static final Map<String, SourceView> SOURCE_VIEWS = Map.of(
+            "OFFICIAL", new SourceView("Oficial", "source-official"),
+            "REVIEW", new SourceView("Review", "source-review"),
+            "ESTIMATED", new SourceView("Estimado", "source-estimated"),
+            "NOT_FOUND", new SourceView("Não encontrado", "source-not-found"));
+
+    /**
+     * Procedência ausente ou desconhecida. Nunca assumir "Oficial" aqui: o
+     * relatório é usado para decisão comercial, e afirmar origem oficial de um
+     * campo cuja origem se desconhece é o pior erro que este PDF pode cometer.
+     */
+    private static final SourceView UNKNOWN_SOURCE = new SourceView("Não informado", "source-not-found");
+
     private final TemplateEngine templateEngine;
 
     @Override
@@ -46,45 +71,7 @@ public class PdfExportWriter implements ExportWriter {
         }
 
         try {
-            // Agrupa as linhas por veículo para suportar tanto pesquisa única quanto sessão multi-veículo
-            Map<String, List<VehicleSpecRow>> rowsByVehicle = rows.stream()
-                    .collect(Collectors.groupingBy(
-                            this::vehicleKey,
-                            LinkedHashMap::new,
-                            Collectors.toList()
-                    ));
-
-            List<VehicleExportData> vehicles = new ArrayList<>();
-            for (List<VehicleSpecRow> vehicleRows : rowsByVehicle.values()) {
-                VehicleSpecRow first = vehicleRows.get(0);
-                Map<String, String> vehicle = Map.of(
-                        "brand", nullToEmpty(first.marca()),
-                        "model", nullToEmpty(first.modelo()),
-                        "trim", nullToEmpty(first.versao()),
-                        "year", first.anoModelo() == null ? "" : first.anoModelo().toString()
-                );
-
-                // Agrupa as especificações por categoria canônica
-                Map<String, List<VehicleSpecRow>> groupedCategories = vehicleRows.stream()
-                        .collect(Collectors.groupingBy(
-                                VehicleSpecRow::categoria,
-                                LinkedHashMap::new,
-                                Collectors.toList()
-                        ));
-
-                List<CategoryExportData> categories = groupedCategories.entrySet().stream()
-                        .map(entry -> new CategoryExportData(entry.getKey(), entry.getValue()))
-                        .toList();
-
-                Map<String, String> highlights = extractHighlights(vehicleRows);
-                vehicles.add(new VehicleExportData(vehicle, highlights, categories));
-            }
-
-            Context context = new Context(Locale.forLanguageTag("pt-BR"));
-            context.setVariable("vehicles", vehicles);
-            context.setVariable("generatedAt", OffsetDateTime.now());
-
-            String renderedHtml = templateEngine.process(TEMPLATE_PATH, context);
+            String renderedHtml = renderHtml(rows);
 
             ByteArrayOutputStream os = new ByteArrayOutputStream();
             PdfRendererBuilder builder = new PdfRendererBuilder();
@@ -102,6 +89,65 @@ public class PdfExportWriter implements ExportWriter {
                     ErrorCode.INTERNAL_ERROR
             );
         }
+    }
+
+    /**
+     * Monta o modelo e renderiza o HTML da ficha, antes da conversão em PDF.
+     *
+     * <p>Visível para teste de propósito: os dois defeitos já corrigidos aqui
+     * — {@code NOT_FOUND} pintado como estimado e a explosão do SpringEL em
+     * chave ausente de {@code highlights} — viviam no template, e sobre os
+     * bytes do PDF não há como afirmar nada. Sobre o HTML, há.
+     */
+    String renderHtml(List<VehicleSpecRow> rows) {
+        // Agrupa as linhas por veículo para suportar tanto pesquisa única quanto sessão multi-veículo
+        Map<String, List<VehicleSpecRow>> rowsByVehicle = rows.stream()
+                .collect(Collectors.groupingBy(
+                        this::vehicleKey,
+                        LinkedHashMap::new,
+                        Collectors.toList()
+                ));
+
+        List<VehicleExportData> vehicles = new ArrayList<>();
+        for (List<VehicleSpecRow> vehicleRows : rowsByVehicle.values()) {
+            VehicleSpecRow first = vehicleRows.get(0);
+            Map<String, String> vehicle = Map.of(
+                    "brand", nullToEmpty(first.marca()),
+                    "model", nullToEmpty(first.modelo()),
+                    "trim", nullToEmpty(first.versao()),
+                    "year", first.anoModelo() == null ? "" : first.anoModelo().toString()
+            );
+
+            // Agrupa as especificações por categoria canônica
+            Map<String, List<VehicleSpecRow>> groupedCategories = vehicleRows.stream()
+                    .collect(Collectors.groupingBy(
+                            VehicleSpecRow::categoria,
+                            LinkedHashMap::new,
+                            Collectors.toList()
+                    ));
+
+            List<CategoryExportData> categories = groupedCategories.entrySet().stream()
+                    .map(entry -> new CategoryExportData(entry.getKey(), toViews(entry.getValue())))
+                    .toList();
+
+            Map<String, String> highlights = extractHighlights(vehicleRows);
+            vehicles.add(new VehicleExportData(vehicle, highlights, categories));
+        }
+
+        Context context = new Context(Locale.forLanguageTag("pt-BR"));
+        context.setVariable("vehicles", vehicles);
+        context.setVariable("generatedAt", OffsetDateTime.now());
+
+        return templateEngine.process(TEMPLATE_PATH, context);
+    }
+
+    private List<SpecRowView> toViews(List<VehicleSpecRow> rows) {
+        return rows.stream().map(row -> {
+            String fonte = row.fonte() == null ? "" : row.fonte().trim().toUpperCase(Locale.ROOT);
+            SourceView source = SOURCE_VIEWS.getOrDefault(fonte, UNKNOWN_SOURCE);
+            String valor = row.valor() == null || row.valor().isBlank() ? EMPTY_VALUE : row.valor();
+            return new SpecRowView(nullToEmpty(row.campo()), valor, source.label(), source.cssClass());
+        }).toList();
     }
 
     private Map<String, String> extractHighlights(List<VehicleSpecRow> rows) {
@@ -148,6 +194,16 @@ public class PdfExportWriter implements ExportWriter {
 
     public record CategoryExportData(
             String name,
-            List<VehicleSpecRow> specs
+            List<SpecRowView> specs
     ) {}
+
+    /** Linha já pronta para o template: sem lógica de decisão do lado do HTML. */
+    public record SpecRowView(
+            String campo,
+            String valor,
+            String fonteLabel,
+            String fonteClass
+    ) {}
+
+    private record SourceView(String label, String cssClass) {}
 }
