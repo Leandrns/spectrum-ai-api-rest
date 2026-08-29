@@ -68,11 +68,15 @@ class ExportServiceImplTest {
                 new AppProperties.Storage(
                         new AppProperties.Storage.Gcs("bucket-de-teste", "projeto", 60, "exports", null)));
 
+        ExportWriter pdfWriter = mock(ExportWriter.class);
+        when(pdfWriter.format()).thenReturn(ExportFormat.PDF);
+        when(pdfWriter.write(any())).thenReturn("%PDF-1.4-sample".getBytes(StandardCharsets.UTF_8));
+
         service = new ExportServiceImpl(
                 searchRepository,
                 exportRepository,
                 new SpecsFlattener(new ObjectMapper()),
-                new ExportWriterResolver(List.of(new CsvExportWriter())),
+                new ExportWriterResolver(List.of(new CsvExportWriter(), pdfWriter)),
                 storage,
                 auditService,
                 properties);
@@ -164,14 +168,21 @@ class ExportServiceImplTest {
     }
 
     @Test
-    @DisplayName("PDF ainda não tem writer — responde 501 em vez de gerar arquivo vazio")
-    void pdfIsNotImplementedYet() {
+    @DisplayName("exporta a pesquisa em PDF e faz o upload com content-type application/pdf")
+    void exportsSearchInPdf() {
         Search search = search("Toyota", "Corolla", "Altis", (short) 2024, OffsetDateTime.now(), "17");
 
-        assertThatThrownBy(() -> service.exportSearch(search, ExportFormat.PDF))
-                .isInstanceOf(BusinessException.class)
-                .satisfies(e -> assertThat(((BusinessException) e).getStatus())
-                        .isEqualTo(HttpStatus.NOT_IMPLEMENTED));
+        SearchExportResponse response = service.exportSearch(search, ExportFormat.PDF);
+
+        assertThat(response.downloadUrl()).isEqualTo("https://storage.googleapis.com/assinada");
+        assertThat(response.expiresAt()).isAfter(OffsetDateTime.now().plusMinutes(59));
+
+        ArgumentCaptor<String> contentTypeCaptor = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<String> filenameCaptor = ArgumentCaptor.forClass(String.class);
+        verify(storage).upload(anyString(), any(), contentTypeCaptor.capture(), filenameCaptor.capture());
+
+        assertThat(contentTypeCaptor.getValue()).isEqualTo("application/pdf");
+        assertThat(filenameCaptor.getValue()).isEqualTo("spectrum_toyota_corolla_2024.pdf");
     }
 
     @Test
