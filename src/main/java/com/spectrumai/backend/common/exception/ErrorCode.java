@@ -11,6 +11,8 @@ public final class ErrorCode {
     public static final String INTERNAL_ERROR   = "INTERNAL_ERROR";
     public static final String NOT_IMPLEMENTED  = "NOT_IMPLEMENTED";
     public static final String STORAGE_ERROR    = "STORAGE_ERROR";
+    /** Falha na ingestão para o data warehouse (BigQuery). */
+    public static final String WAREHOUSE_ERROR  = "WAREHOUSE_ERROR";
 
     private ErrorCode() {}
 }

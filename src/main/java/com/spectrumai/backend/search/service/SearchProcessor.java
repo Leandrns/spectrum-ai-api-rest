@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.spectrumai.backend.ai.dto.AiResponse;
 import com.spectrumai.backend.ai.service.AiOrchestrationService;
+import com.spectrumai.backend.export.bigquery.service.BigQueryExportService;
 import com.spectrumai.backend.search.dto.SearchProgressEvent;
 import com.spectrumai.backend.search.dto.SearchRequest;
 import com.spectrumai.backend.search.model.Search;
@@ -39,6 +40,7 @@ public class SearchProcessor {
     private final ObjectMapper objectMapper;
     private final SearchStreamService streamService;
     private final FakeProgressScheduler fakeProgressScheduler;
+    private final BigQueryExportService bigQueryExportService;
 
     @Async
     public void process(UUID searchId, UUID tenantId) {
@@ -49,6 +51,10 @@ public class SearchProcessor {
             fakeProgressScheduler.start(searchId);
             try {
                 executeAndPersist(searchId);
+                // Depois do commit e depois do evento COMPLETED: o cliente já recebeu
+                // o resultado, e a ingestão no BigQuery não atrasa nem afeta a resposta.
+                // O método nunca propaga exceção — ver o contrato em BigQueryExportService.
+                bigQueryExportService.syncCompletedSearchQuietly(searchId);
             } catch (RuntimeException e) {
                 log.error("Falha na pesquisa {}: {}", searchId, e.getMessage(), e);
                 markFailed(searchId, e.getMessage());

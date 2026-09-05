@@ -52,6 +52,12 @@ services:
       # Alternativa ao arquivo de credencial montado, para reproduzir localmente o
       # mesmo caminho usado em Railway/Heroku. Vazio = usa o arquivo do override.
       GCP_CREDENTIALS_JSON: ${GCP_CREDENTIALS_JSON:-}
+      # Ingestao no BigQuery. Desligada por padrao; ligue com BQ_ENABLED=true no
+      # .env. Reaproveita a credencial e o projeto do bucket, entao nao ha o que
+      # configurar aqui alem do dataset, que precisa existir no GCP.
+      BQ_ENABLED: ${BQ_ENABLED:-false}
+      BQ_DATASET: ${BQ_DATASET:-spectrum_analytics}
+      BQ_AUTO_SYNC: ${BQ_AUTO_SYNC:-true}
     depends_on:
       postgres:
         condition: service_healthy

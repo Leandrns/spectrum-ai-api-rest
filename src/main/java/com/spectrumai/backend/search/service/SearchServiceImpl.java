@@ -7,6 +7,8 @@ import com.spectrumai.backend.common.exception.ResourceNotFoundException;
 import com.spectrumai.backend.company.model.Company;
 import com.spectrumai.backend.company.repository.CompanyRepository;
 import com.spectrumai.backend.export.ExportFormat;
+import com.spectrumai.backend.export.bigquery.dto.BigQuerySyncResponse;
+import com.spectrumai.backend.export.bigquery.service.BigQueryExportService;
 import com.spectrumai.backend.export.service.ExportService;
 import com.spectrumai.backend.search.dto.SearchEnqueuedResponse;
 import com.spectrumai.backend.search.dto.SearchExportResponse;
@@ -52,6 +54,7 @@ public class SearchServiceImpl implements SearchService {
     private final SearchStreamService streamService;
     private final AuditService auditService;
     private final ExportService exportService;
+    private final BigQueryExportService bigQueryExportService;
 
     @Override
     public SearchEnqueuedResponse enqueue(SearchRequest request) {
@@ -137,6 +140,16 @@ public class SearchServiceImpl implements SearchService {
     public SearchExportResponse export(UUID searchId, ExportFormat format) {
         Search search = loadSearchScoped(searchId);
         return exportService.exportSearch(search, format);
+    }
+
+    /**
+     * Mesma fronteira de tenant da exportação em arquivo — resolve a pesquisa e
+     * delega a carga.
+     */
+    @Override
+    public BigQuerySyncResponse syncToBigQuery(UUID searchId) {
+        Search search = loadSearchScoped(searchId);
+        return bigQueryExportService.syncSearch(search);
     }
 
     private Search loadSearchScoped(UUID searchId) {

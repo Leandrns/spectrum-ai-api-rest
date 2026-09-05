@@ -1,6 +1,7 @@
 package com.spectrumai.backend.search.service;
 
 import com.spectrumai.backend.export.ExportFormat;
+import com.spectrumai.backend.export.bigquery.dto.BigQuerySyncResponse;
 import com.spectrumai.backend.search.dto.SearchEnqueuedResponse;
 import com.spectrumai.backend.search.dto.SearchExportResponse;
 import com.spectrumai.backend.search.dto.SearchRequest;
@@ -20,4 +21,6 @@ public interface SearchService {
     Page<SearchSummary> history(UUID sessionId, Pageable pageable);
 
     SearchExportResponse export(UUID searchId, ExportFormat format);
+
+    BigQuerySyncResponse syncToBigQuery(UUID searchId);
 }
