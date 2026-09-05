@@ -2,6 +2,7 @@ package com.spectrumai.backend.search.controller;
 
 import com.spectrumai.backend.common.dto.PageResponse;
 import com.spectrumai.backend.export.ExportFormat;
+import com.spectrumai.backend.export.bigquery.dto.BigQuerySyncResponse;
 import com.spectrumai.backend.search.dto.SearchEnqueuedResponse;
 import com.spectrumai.backend.search.dto.SearchExportResponse;
 import com.spectrumai.backend.search.dto.SearchProgressEvent;
@@ -81,5 +82,21 @@ public class SearchController {
             @RequestParam(required = false, defaultValue = "csv") String format
     ) {
         return searchService.export(id, ExportFormat.from(format));
+    }
+
+    @Operation(
+            summary = "Envia a ficha técnica da pesquisa para o BigQuery",
+            description = """
+                    Grava a ficha na tabela de fatos do BigQuery, uma linha por campo, para
+                    análise em ferramenta de BI. Não devolve arquivo.
+
+                    A operação é idempotente: se o conteúdo não mudou desde a última carga,
+                    nada é reenviado e a resposta vem com `skipped: true`. Pesquisas
+                    concluídas já sobem sozinhas — este endpoint serve para carregar o
+                    histórico anterior ou refazer uma carga que falhou.""")
+    @PostMapping("/{id}/export/bigquery")
+    @PreAuthorize("hasAnyRole('ADMIN','ANALYST')")
+    public BigQuerySyncResponse exportToBigQuery(@PathVariable UUID id) {
+        return searchService.syncToBigQuery(id);
     }
 }

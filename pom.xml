@@ -116,13 +116,19 @@
         <dependency>
             <groupId>com.google.genai</groupId>
             <artifactId>google-genai</artifactId>
-            <version>1.0.0</version>
+            <version>1.70.0</version>
         </dependency>
 
         <!-- Google Cloud Storage (arquivos de exportacao CSV/PDF) -->
         <dependency>
             <groupId>com.google.cloud</groupId>
             <artifactId>google-cloud-storage</artifactId>
+        </dependency>
+
+        <!-- BigQuery (ingestao das fichas tecnicas para analise em BI) -->
+        <dependency>
+            <groupId>com.google.cloud</groupId>
+            <artifactId>google-cloud-bigquery</artifactId>
         </dependency>
 
         <!-- Reactor (para Flux<ServerSentEvent> no endpoint SSE) -->

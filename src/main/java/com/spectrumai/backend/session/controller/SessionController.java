@@ -2,6 +2,8 @@ package com.spectrumai.backend.session.controller;
 
 import com.spectrumai.backend.common.dto.PageResponse;
 import com.spectrumai.backend.export.ExportFormat;
+import com.spectrumai.backend.export.bigquery.dto.SessionBigQuerySyncResponse;
+import com.spectrumai.backend.export.bigquery.service.BigQueryExportService;
 import com.spectrumai.backend.export.service.ExportService;
 import com.spectrumai.backend.search.dto.SearchExportResponse;
 import com.spectrumai.backend.session.model.AnalysisSession;
@@ -35,6 +37,7 @@ public class SessionController {
 
     private final SessionService sessionService;
     private final ExportService exportService;
+    private final BigQueryExportService bigQueryExportService;
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -69,5 +72,22 @@ public class SessionController {
     ) {
         AnalysisSession session = sessionService.getById(id);
         return exportService.exportSession(session, ExportFormat.from(format));
+    }
+
+    @Operation(
+            summary = "Envia o comparativo da sessão para o BigQuery",
+            description = """
+                    Grava na tabela de fatos as fichas de todas as pesquisas concluídas da
+                    sessão, uma linha por campo. Não devolve arquivo.
+
+                    Ao contrário da exportação em arquivo, veículo pesquisado mais de uma vez
+                    não é deduplicado: cada linha carrega seu `search_id` e a escolha entre as
+                    pesquisas fica com a consulta. Pesquisas cujo conteúdo não mudou desde a
+                    última carga são contadas em `skipped`.""")
+    @PostMapping("/{id}/export/bigquery")
+    @PreAuthorize("hasAnyRole('ADMIN','ANALYST')")
+    public SessionBigQuerySyncResponse exportToBigQuery(@PathVariable UUID id) {
+        AnalysisSession session = sessionService.getById(id);
+        return bigQueryExportService.syncSession(session);
     }
 }

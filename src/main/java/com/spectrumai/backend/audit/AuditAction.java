@@ -11,6 +11,8 @@ public final class AuditAction {
     public static final String SEARCH_CREATED      = "SEARCH_CREATED";
     public static final String SEARCH_EXPORTED     = "SEARCH_EXPORTED";
     public static final String SESSION_EXPORTED    = "SESSION_EXPORTED";
+    public static final String SEARCH_BQ_SYNCED    = "SEARCH_BQ_SYNCED";
+    public static final String SESSION_BQ_SYNCED   = "SESSION_BQ_SYNCED";
     public static final String SESSION_CREATED     = "SESSION_CREATED";
     public static final String CATALOG_IMPORTED    = "CATALOG_IMPORTED";
     public static final String CATALOG_CANCELLED   = "CATALOG_CANCELLED";

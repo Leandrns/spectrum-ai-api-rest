@@ -67,7 +67,8 @@ class ExportServiceImplTest {
 
         AppProperties properties = new AppProperties(null, null,
                 new AppProperties.Storage(
-                        new AppProperties.Storage.Gcs("bucket-de-teste", "projeto", 60, "exports", null)));
+                        new AppProperties.Storage.Gcs("bucket-de-teste", "projeto", 60, "exports", null)),
+                null);
 
         ExportWriter pdfWriter = mock(ExportWriter.class);
         when(pdfWriter.format()).thenReturn(ExportFormat.PDF);

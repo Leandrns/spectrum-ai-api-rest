@@ -29,6 +29,7 @@ Vinicius Rozas Pannuci de Paula Cont - RM: 555338
 - [Endpoints principais](#endpoints-principais)
 - [Pesquisa de specs](#pesquisa-de-specs)
 - [Exportação de dados (CSV)](#exportação-de-dados-csv)
+- [Ingestão no BigQuery](#ingestão-no-bigquery)
 - [Perfis de execução](#perfis-de-execução)
 - [Comandos úteis](#comandos-úteis)
 - [Estrutura de módulos](#estrutura-de-módulos)
@@ -105,9 +106,11 @@ Abra o `.env` e preencha:
 | `FIPE_API_TOKEN` | Sim (para popular catálogo) | https://fipe.online/dashboard (gratuito) |
 | `DATABASE_PASSWORD` | Recomendado | Default `spectrum` funciona em dev local |
 | `GCS_EXPORT_BUCKET` | Só para exportação | Nome do bucket no GCP — veja [Exportação de dados](#exportação-de-dados-csv) |
+| `BQ_ENABLED` | Só para o BI | `true` liga a ingestão no BigQuery — veja [Ingestão no BigQuery](#ingestão-no-bigquery) |
 
 > Sem `GCS_EXPORT_BUCKET` a API sobe normalmente; apenas os endpoints `/export`
-> respondem `502 STORAGE_ERROR`. Todo o resto funciona.
+> respondem `502 STORAGE_ERROR`. Todo o resto funciona. O mesmo vale para
+> `BQ_ENABLED`: desligado (o padrão), só `/export/bigquery` responde `503`.
 
 **Gerando um `JWT_SECRET` seguro:**
 ```bash
@@ -315,6 +318,8 @@ devolve apenas uma URL nova — confira em `SELECT * FROM data_exports`.
 | `GET` | `/v1/searches/{id}/result` | JWT | Resultado completo |
 | `GET` | `/v1/searches/{id}/export` | JWT (`ADMIN`/`ANALYST`) | Exporta a ficha de um veículo (`?format=csv`) |
 | `GET` | `/v1/sessions/{id}/export` | JWT (`ADMIN`/`ANALYST`) | Exporta o comparativo da sessão inteira (`?format=csv`) |
+| `POST` | `/v1/searches/{id}/export/bigquery` | JWT (`ADMIN`/`ANALYST`) | Envia a ficha para o BigQuery — veja [Ingestão no BigQuery](#ingestão-no-bigquery) |
+| `POST` | `/v1/sessions/{id}/export/bigquery` | JWT (`ADMIN`/`ANALYST`) | Envia a sessão inteira para o BigQuery |
 | `POST` | `/v1/admin/vehicles/import` | JWT (`ADMIN`) | Popula catálogo via FIPE |
 | `GET` | `/v1/admin/vehicles/import/status` | JWT (`ADMIN`) | Status da importação |
 
@@ -456,7 +461,10 @@ A resposta **não é o arquivo**, e sim uma URL temporária de download direto d
 { "downloadUrl": "https://storage.googleapis.com/...", "expiresAt": "2026-08-22T22:00:00Z" }
 ```
 
-`format=pdf` está previsto no contrato e responde `501` até a segunda etapa da feature.
+`format=pdf` devolve a mesma ficha em layout de relatório, no lugar do CSV.
+
+Para análise contínua em ferramenta de BI, em vez de um arquivo por pesquisa, veja
+[Ingestão no BigQuery](#ingestão-no-bigquery).
 
 ### Formato do arquivo
 
@@ -538,6 +546,152 @@ para reaproveitar um arquivo já enviado em vez de subir outro igual.
 
 ---
 
+## Ingestão no BigQuery
+
+O CSV serve para uma pessoa baixar uma ficha. Para análise contínua — cobertura por
+categoria, comparativo entre marcas, evolução de uma versão entre revisões — o dado
+precisa estar num lugar consultável, e não num arquivo por pesquisa. É o que esta
+integração faz: **cada pesquisa concluída vira linhas numa tabela de fatos do
+BigQuery**, uma linha por campo da ficha.
+
+Ligue com `BQ_ENABLED=true` no `.env`. Desligada (o padrão), a API sobe normalmente e
+só `/export/bigquery` responde `503 WAREHOUSE_ERROR`.
+
+| Quando | O que acontece |
+|---|---|
+| Pesquisa concluída | Sobe sozinha, se `BQ_AUTO_SYNC=true` (padrão) |
+| `POST /v1/searches/{id}/export/bigquery` | Sobe uma pesquisa específica |
+| `POST /v1/sessions/{id}/export/bigquery` | Sobe todas as pesquisas concluídas da sessão |
+
+Os endpoints existem para carregar o histórico que já estava no banco antes da
+integração, e para refazer uma carga que falhou. A resposta não é arquivo:
+
+```json
+{ "searchId": "...", "rows": 254, "skipped": false, "ingestedAt": "2026-09-05T14:22:07Z" }
+```
+
+`skipped: true` significa que o conteúdo não mudou desde a última carga e nada foi
+reenviado — a consulta no BI já reflete esses dados.
+
+> A carga automática **nunca derruba a pesquisa**: se o BigQuery estiver fora, a
+> pesquisa continua concluída e válida, o erro fica no log e a pesquisa fica ausente
+> da tabela até alguém chamar o endpoint. Não há job de reconciliação ainda.
+
+### O que consultar
+
+A aplicação cria **uma tabela e uma view**. Consulte sempre a view:
+
+| Objeto | Papel |
+|---|---|
+| `vehicle_specs` | Tabela de fatos, **append-only**. Guarda todas as cargas, inclusive revisões da mesma pesquisa |
+| `vw_vehicle_specs_latest` | Uma linha por (pesquisa, categoria, campo): a carga mais recente vence |
+
+A tabela é append-only porque linhas recém-inseridas pela streaming API ficam num
+buffer que **não aceita DML por até 90 minutos** — um `DELETE` antes do insert
+falharia de forma intermitente. Empilhar e resolver na leitura troca esse problema
+por uma view, e de graça mantém o histórico de revisões.
+
+Reenvio redundante é barrado antes disso, pelo hash de conteúdo em `bigquery_syncs`:
+sincronizar duas vezes a mesma pesquisa não grava nada na segunda.
+
+### Colunas
+
+| Coluna | Tipo | Observação |
+|---|---|---|
+| `tenant_id` | STRING | Empresa dona da pesquisa. **Filtre sempre por aqui** |
+| `search_id` | STRING | Pesquisa de origem; permite voltar ao histórico da API |
+| `session_id` | STRING | Sessão, quando a pesquisa nasceu num comparativo |
+| `marca`, `modelo`, `versao` | STRING | |
+| `ano_modelo` | INT64 | |
+| `categoria`, `campo` | STRING | As 14 categorias canônicas e seus campos |
+| `valor` | STRING | O valor como a IA retornou. **É o dado de referência** |
+| `fonte` | STRING | `OFFICIAL`, `REVIEW`, `ESTIMATED` ou `NOT_FOUND` |
+| `encontrado` | BOOL | `false` quando `fonte = NOT_FOUND`. Mede cobertura sem comparar strings |
+| `valor_num` | FLOAT64 | Primeiro número de `valor`, quando existe. Best-effort — veja abaixo |
+| `confianca` | NUMERIC | Confiança geral da pesquisa (0 a 1), igual em todas as linhas dela |
+| `pesquisado_em` | TIMESTAMP | Conclusão da pesquisa. **Coluna de particionamento** |
+| `ingerido_em` | TIMESTAMP | Carga que trouxe a linha; desempata revisões |
+
+Particionada por dia em `pesquisado_em` e clusterizada por
+`tenant_id, marca, modelo, categoria`. Filtrar por data e tenant é o que mantém o
+custo de consulta perto de zero.
+
+Sobre `valor_num`: a ficha mistura convenções, então a regra é a do português —
+ponto seguido de exatamente três dígitos é separador de milhar (`1.999 cm³` → 1999) e
+qualquer outro ponto é decimal (`1.6 Turbo` → 1.6). Valores com mais de um número
+(`17/18`) devolvem o primeiro. Para indicador de negócio, confira em `valor`.
+
+### Consultas de exemplo
+
+Cobertura da ficha por categoria — quanto a IA conseguiu preencher:
+
+```sql
+SELECT categoria,
+       COUNTIF(encontrado) AS preenchidos,
+       COUNT(*) AS campos,
+       ROUND(COUNTIF(encontrado) / COUNT(*) * 100, 1) AS cobertura_pct
+FROM `spectrum-ai-504812.spectrum_analytics.vw_vehicle_specs_latest`
+WHERE tenant_id = 'SEU-TENANT'
+  AND pesquisado_em >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 90 DAY)
+GROUP BY categoria
+ORDER BY cobertura_pct;
+```
+
+Comparativo lado a lado, uma coluna por veículo:
+
+```sql
+SELECT categoria, campo,
+       ANY_VALUE(IF(modelo = 'Corolla Cross', valor, NULL)) AS corolla_cross,
+       ANY_VALUE(IF(modelo = 'Compass', valor, NULL)) AS compass
+FROM `spectrum-ai-504812.spectrum_analytics.vw_vehicle_specs_latest`
+WHERE tenant_id = 'SEU-TENANT'
+  AND modelo IN ('Corolla Cross', 'Compass')
+  AND ano_modelo = 2026
+GROUP BY categoria, campo
+ORDER BY categoria, campo;
+```
+
+### Configurando o dataset
+
+A credencial e o projeto são **os mesmos do bucket** — nada novo para configurar
+além do dataset.
+
+1. Habilite a **BigQuery API** no projeto (normalmente já vem habilitada).
+2. Crie o dataset `spectrum_analytics` **na mesma localização do bucket**
+   (`us-east1`). A localização de um dataset é imutável: é por isso que o dataset é
+   pré-requisito de infra e não é criado pela aplicação. Co-localizar mantém aberta a
+   opção de trocar a ingestão por um load job a partir do bucket, se o volume crescer.
+3. Conceda `roles/bigquery.dataEditor` à service account de exportação, **no
+   dataset** (não no projeto) — o mesmo princípio do `objectAdmin` no bucket.
+
+```bash
+bq --location=us-east1 mk --dataset --description "Spectrum AI - fatos de ficha tecnica para BI" spectrum-ai-504812:spectrum_analytics
+```
+
+`dataEditor` basta: a tabela e a view são criadas pela API `tables.insert`, não por
+um query job, então `roles/bigquery.jobUser` não é necessário para a aplicação. Quem
+**consulta** precisa de `jobUser` no projeto (consultar é criar um job) mais
+`dataViewer` no dataset.
+
+Não crie a tabela à mão. Uma tabela sem particionamento funciona igual e só se
+revela na fatura, porque toda consulta passa a varrer o histórico inteiro.
+
+### Retenção e custo
+
+As partições expiram em `BQ_RETENTION_DAYS` dias (padrão 730, o mesmo
+`RETENTION_SEARCHES_DAYS`). O `DataRetentionScheduler` apaga do Postgres e **não
+alcança o BigQuery** — lá quem descarta é a expiração de partição, configurada na
+criação da tabela.
+
+Custo no volume deste projeto: streaming insert é US$ 0,01 por 200 MB, e uma pesquisa
+de ~250 linhas dá ~50 KB — cerca de 4.000 pesquisas por centavo. Armazenamento tem
+10 GB grátis por mês e consulta tem 1 TB. Na prática, dentro do free tier.
+
+As linhas não carregam dado pessoal: são especificações de veículo, e o `tenant_id` é
+um UUID interno.
+
+---
+
 ## Perfis de execução
 
 | Perfil | Uso | Comportamento |
@@ -581,6 +735,8 @@ Stack de produção: **Railway para a API** + **Supabase (free tier) para o Post
    | `GCS_EXPORT_BUCKET` | nome do bucket de exportações |
    | `GCP_PROJECT_ID` | id do projeto GCP |
    | `GCP_CREDENTIALS_JSON` | service account em base64 (passo 3) |
+   | `BQ_ENABLED` | `true` para ligar a ingestão no BigQuery (padrão `false`) |
+   | `BQ_DATASET` | dataset criado no GCP — padrão `spectrum_analytics` |
 
    > **Não adicione o plugin PostgreSQL do Railway.** O banco aqui é o Supabase, e o
    > plugin injeta uma variável `DATABASE_URL` própria no formato
@@ -655,7 +811,8 @@ src/main/java/com/spectrumai/backend/
 ├── user/          # Gestão de usuários e roles
 ├── session/       # Sessões de análise competitiva
 ├── search/        # Buscas de veículos e resultados (SSE)
-├── export/        # Exportação CSV/PDF para BI + armazenamento no GCS
+├── export/        # Exportação CSV/PDF + armazenamento no GCS
+│   └── bigquery/  # Ingestão das fichas na tabela de fatos do BigQuery (BI)
 ├── vehicles/      # Catálogo de veículos + importação FIPE
 ├── insights/      # Geração de insights via IA
 ├── ai/            # Integração com provedores de IA (Gemini)
@@ -681,6 +838,7 @@ Migrations ficam em `src/main/resources/db/migration/` e seguem o padrão Flyway
 | `V6__encrypt_pii_columns.sql` | Legado: alargou colunas de PII para ciphertext. A criptografia em repouso foi removida; o arquivo é mantido porque a migration já foi aplicada |
 | `V7__data_exports.sql` | Registro dos arquivos exportados (CSV) e sua retenção |
 | `V8__prompt_vehicle_spec_search.sql` | `vehicle_spec_search` v2: hierarquia de fontes, restrição de mercado e ano-modelo, fontes proibidas, rastreabilidade das tags e `NOT_FOUND` |
+| `V9__bigquery_syncs.sql` | Controle da ingestão no BigQuery: hash por pesquisa, para não empilhar linhas iguais |
 
 Para criar uma nova migration, adicione um arquivo com o próximo número de versão.
 

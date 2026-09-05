@@ -5,6 +5,7 @@ import com.spectrumai.backend.audit.AuditService;
 import com.spectrumai.backend.auth.security.SecurityUtil;
 import com.spectrumai.backend.common.exception.BusinessException;
 import com.spectrumai.backend.common.exception.ErrorCode;
+import com.spectrumai.backend.common.util.ContentHash;
 import com.spectrumai.backend.config.AppProperties;
 import com.spectrumai.backend.export.ExportFormat;
 import com.spectrumai.backend.export.ExportScope;
@@ -26,14 +27,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.text.Normalizer;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -123,7 +121,7 @@ public class ExportServiceImpl implements ExportService {
         ExportWriter writer = writerResolver.resolve(format);
 
         byte[] content = writer.write(rows);
-        String hash = sha256(content);
+        String hash = ContentHash.of(content);
         String downloadFilename = filename + "." + format.extension();
 
         Optional<DataExport> cached = exportRepository
@@ -207,14 +205,6 @@ public class ExportServiceImpl implements ExportService {
                 scope.name().toLowerCase(Locale.ROOT),
                 resourceId.toString(),
                 hash.substring(0, HASH_NAME_LENGTH) + "." + format.extension());
-    }
-
-    private String sha256(byte[] content) {
-        try {
-            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(content));
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA-256 indisponível na JVM", e);
-        }
     }
 
     /** Normaliza para um nome de arquivo seguro: sem acentos, espaços ou pontuação. */

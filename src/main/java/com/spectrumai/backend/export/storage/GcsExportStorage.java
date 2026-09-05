@@ -8,17 +8,14 @@ import com.google.cloud.storage.StorageException;
 import com.google.cloud.storage.StorageOptions;
 import com.spectrumai.backend.common.exception.BusinessException;
 import com.spectrumai.backend.common.exception.ErrorCode;
+import com.spectrumai.backend.common.gcp.GcpCredentials;
 import com.spectrumai.backend.config.AppProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.util.Base64;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -100,7 +97,8 @@ public class GcsExportStorage implements ExportStorage {
             builder.setProjectId(gcs.projectId());
         }
         try {
-            ServiceAccountCredentials inline = credentialsFromProperty(gcs.credentialsJson());
+            ServiceAccountCredentials inline = GcpCredentials.fromJsonProperty(
+                    gcs.credentialsJson(), "GCP_CREDENTIALS_JSON");
             if (inline != null) {
                 builder.setCredentials(inline);
                 log.info("GCS autenticado pela credencial inline (service account {})",
@@ -115,39 +113,6 @@ public class GcsExportStorage implements ExportStorage {
                     "Armazenamento de exportações indisponível.",
                     HttpStatus.BAD_GATEWAY,
                     ErrorCode.STORAGE_ERROR);
-        }
-    }
-
-    /**
-     * Lê a service account de uma variável de ambiente, para plataformas que não
-     * oferecem um arquivo de secret montado (Railway, Heroku, Fly).
-     *
-     * <p>Aceita o JSON em texto puro ou em base64: alguns painéis de configuração
-     * maltratam valores multilinha, e o base64 contorna isso.
-     *
-     * <p>Exige uma service account de verdade — a assinatura de URL V4 precisa da
-     * chave privada, então um JSON de outro tipo de credencial não serviria.
-     */
-    private ServiceAccountCredentials credentialsFromProperty(String raw) {
-        if (raw == null || raw.isBlank()) {
-            return null;
-        }
-        String json = raw.trim();
-        if (!json.startsWith("{")) {
-            try {
-                json = new String(Base64.getDecoder().decode(json), StandardCharsets.UTF_8).trim();
-            } catch (IllegalArgumentException e) {
-                throw new IllegalStateException(
-                        "GCP_CREDENTIALS_JSON não é JSON nem base64 válido.", e);
-            }
-        }
-        try {
-            return ServiceAccountCredentials.fromStream(
-                    new ByteArrayInputStream(json.getBytes(StandardCharsets.UTF_8)));
-        } catch (IOException e) {
-            throw new IllegalStateException(
-                    "GCP_CREDENTIALS_JSON não é um JSON de service account válido "
-                            + "(precisa conter client_email e private_key).", e);
         }
     }
 
