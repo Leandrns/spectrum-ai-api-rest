@@ -188,22 +188,12 @@ public class BigQueryExportServiceImpl implements BigQueryExportService {
         for (List<VehicleSpecFact> batch : batches(facts)) {
             sink.insertAll(batch);
         }
-        persist(control.orElse(null), tenantId, search.getId(), hash, facts.size(), ingestedAt);
+        // O id só é usado quando não há registro ainda; no conflito, o upsert atualiza
+        // a linha existente e descarta este valor.
+        UUID controlId = control.map(BigQuerySync::getId).orElseGet(UUID::randomUUID);
+        syncRepository.upsert(controlId, tenantId, search.getId(), hash, facts.size(), ingestedAt);
 
         return new SyncOutcome(facts.size(), false, ingestedAt);
-    }
-
-    private void persist(BigQuerySync existing, UUID tenantId, UUID searchId, String hash,
-                         int rowCount, OffsetDateTime ingestedAt) {
-        BigQuerySync entry = existing == null
-                ? BigQuerySync.builder().id(UUID.randomUUID()).build()
-                : existing;
-        entry.setTenantId(tenantId);
-        entry.setSearchId(searchId);
-        entry.setContentHash(hash);
-        entry.setRowCount(rowCount);
-        entry.setIngestedAt(ingestedAt);
-        syncRepository.save(entry);
     }
 
     private String contentHash(List<VehicleSpecFact> facts) {

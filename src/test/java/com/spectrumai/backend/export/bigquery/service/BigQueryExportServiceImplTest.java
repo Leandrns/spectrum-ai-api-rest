@@ -31,6 +31,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -131,12 +132,12 @@ class BigQueryExportServiceImplTest {
         verify(sink).ensureSchema();
         assertThat(capturedBatches().getFirst()).hasSize(3);
 
-        ArgumentCaptor<BigQuerySync> saved = ArgumentCaptor.forClass(BigQuerySync.class);
-        verify(syncRepository).save(saved.capture());
-        assertThat(saved.getValue().getTenantId()).isEqualTo(TENANT_ID);
-        assertThat(saved.getValue().getSearchId()).isEqualTo(search.getId());
-        assertThat(saved.getValue().getRowCount()).isEqualTo(3);
-        assertThat(saved.getValue().getContentHash()).hasSize(64);
+        ArgumentCaptor<String> hash = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<Integer> rows = ArgumentCaptor.forClass(Integer.class);
+        verify(syncRepository).upsert(any(), eq(TENANT_ID), eq(search.getId()),
+                hash.capture(), rows.capture(), any());
+        assertThat(hash.getValue()).hasSize(64);
+        assertThat(rows.getValue()).isEqualTo(3);
     }
 
     /**
@@ -157,9 +158,7 @@ class BigQueryExportServiceImplTest {
         Search search = search("Toyota", 3, OffsetDateTime.now());
         // Primeira carga só para descobrir o hash que o conteúdo produz.
         service.syncSearch(search);
-        ArgumentCaptor<BigQuerySync> saved = ArgumentCaptor.forClass(BigQuerySync.class);
-        verify(syncRepository).save(saved.capture());
-        BigQuerySync registro = saved.getValue();
+        BigQuerySync registro = controlRecordFromFirstUpsert(search);
 
         when(syncRepository.findByTenantIdAndSearchId(TENANT_ID, search.getId()))
                 .thenReturn(Optional.of(registro));
@@ -171,7 +170,25 @@ class BigQueryExportServiceImplTest {
         assertThat(response.ingestedAt()).isEqualTo(registro.getIngestedAt());
         // Continua sendo uma única inserção: a segunda chamada não enviou nada.
         verify(sink, times(1)).insertAll(anyList());
-        verify(syncRepository, times(1)).save(any());
+        verify(syncRepository, times(1)).upsert(any(), any(), any(), any(), anyInt(), any());
+    }
+
+    /** Reconstrói o registro de controle a partir dos argumentos do upsert. */
+    private BigQuerySync controlRecordFromFirstUpsert(Search search) {
+        ArgumentCaptor<UUID> id = ArgumentCaptor.forClass(UUID.class);
+        ArgumentCaptor<String> hash = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<Integer> rows = ArgumentCaptor.forClass(Integer.class);
+        ArgumentCaptor<OffsetDateTime> ingestedAt = ArgumentCaptor.forClass(OffsetDateTime.class);
+        verify(syncRepository).upsert(id.capture(), eq(TENANT_ID), eq(search.getId()),
+                hash.capture(), rows.capture(), ingestedAt.capture());
+        return BigQuerySync.builder()
+                .id(id.getValue())
+                .tenantId(TENANT_ID)
+                .searchId(search.getId())
+                .contentHash(hash.getValue())
+                .rowCount(rows.getValue())
+                .ingestedAt(ingestedAt.getValue())
+                .build();
     }
 
     @Test
@@ -192,9 +209,11 @@ class BigQueryExportServiceImplTest {
 
         assertThat(response.skipped()).isFalse();
         verify(sink).insertAll(anyList());
-        // O registro existente é atualizado no lugar de criar uma linha duplicada.
-        verify(syncRepository).save(registro);
-        assertThat(registro.getContentHash()).isNotEqualTo("hash-que-nao-bate");
+        // Reaproveita o id do registro existente em vez de tentar criar outra linha.
+        ArgumentCaptor<String> hash = ArgumentCaptor.forClass(String.class);
+        verify(syncRepository).upsert(eq(registro.getId()), eq(TENANT_ID), eq(search.getId()),
+                hash.capture(), anyInt(), any());
+        assertThat(hash.getValue()).isNotEqualTo("hash-que-nao-bate");
     }
 
     @Test
@@ -308,7 +327,7 @@ class BigQueryExportServiceImplTest {
 
         service.syncCompletedSearchQuietly(search.getId());
 
-        verify(syncRepository, never()).save(any());
+        verify(syncRepository, never()).upsert(any(), any(), any(), any(), anyInt(), any());
     }
 
     @Test

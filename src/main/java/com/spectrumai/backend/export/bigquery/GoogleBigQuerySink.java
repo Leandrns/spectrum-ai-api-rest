@@ -140,9 +140,10 @@ public class GoogleBigQuerySink implements BigQuerySink {
     }
 
     private BusinessException datasetMissing(BigQueryException cause) {
-        log.error("Dataset {}.{} não encontrado no BigQuery", projectId(), dataset(), cause);
+        String project = projectLabel();
+        log.error("Dataset {}.{} não encontrado no BigQuery", project, dataset(), cause);
         return new BusinessException(
-                "O dataset " + dataset() + " não existe no projeto " + projectId()
+                "O dataset " + dataset() + " não existe no projeto " + project
                         + ". Ele precisa ser criado antes, na mesma localização do bucket.",
                 HttpStatus.BAD_GATEWAY,
                 ErrorCode.WAREHOUSE_ERROR);
@@ -225,9 +226,12 @@ public class GoogleBigQuerySink implements BigQuerySink {
 
     private BigQuery buildClient() {
         BigQueryOptions.Builder builder = BigQueryOptions.newBuilder();
-        String projectId = projectId();
-        if (projectId != null && !projectId.isBlank()) {
-            builder.setProjectId(projectId);
+        // Só o projeto configurado: sem ele, deixa o client resolver o default a
+        // partir da credencial. Chamar projectId() aqui seria recursivo — ele
+        // consulta justamente o client que esta linha está construindo.
+        String configured = configuredProjectId();
+        if (configured != null) {
+            builder.setProjectId(configured);
         }
         try {
             ServiceAccountCredentials inline = GcpCredentials.fromJsonProperty(
@@ -252,13 +256,42 @@ public class GoogleBigQuerySink implements BigQuerySink {
         return TableId.of(projectId(), dataset(), table());
     }
 
+    /**
+     * Projeto efetivo, na ordem: o configurado para o BigQuery, o do bucket, ou o que
+     * o próprio client resolveu.
+     *
+     * <p>A terceira opção não é detalhe: uma service account traz {@code project_id}
+     * no JSON, então o Application Default Credentials costuma resolver o projeto
+     * sozinho e exigir configuração explícita quebraria uma instalação que funciona.
+     * Já um {@code null} silencioso chegaria a {@code TableId.of} e estouraria com
+     * uma mensagem que não diz o que configurar — daí a falha explícita no fim.
+     */
     private String projectId() {
+        String configured = configuredProjectId();
+        if (configured != null) {
+            return configured;
+        }
+        String resolved = client().getOptions().getProjectId();
+        if (resolved != null && !resolved.isBlank()) {
+            return resolved;
+        }
+        log.error("Projeto do BigQuery indefinido — defina BQ_PROJECT_ID ou GCP_PROJECT_ID");
+        throw new BusinessException(
+                "Projeto do GCP não configurado para o BigQuery. "
+                        + "Defina BQ_PROJECT_ID ou GCP_PROJECT_ID.",
+                HttpStatus.BAD_GATEWAY,
+                ErrorCode.WAREHOUSE_ERROR);
+    }
+
+    /** O projeto vindo da configuração, sem consultar o client. {@code null} se ausente. */
+    private String configuredProjectId() {
         String own = bigQuery().projectId();
         if (own != null && !own.isBlank()) {
             return own;
         }
         AppProperties.Storage.Gcs gcs = gcsOrNull();
-        return gcs == null ? null : gcs.projectId();
+        String fromStorage = gcs == null ? null : gcs.projectId();
+        return fromStorage == null || fromStorage.isBlank() ? null : fromStorage;
     }
 
     private String credentialsJson() {
@@ -305,10 +338,22 @@ public class GoogleBigQuerySink implements BigQuerySink {
 
     /** Mensagem genérica ao cliente; o detalhe da API do Google fica só no log. */
     private BusinessException warehouseFailure(String acao, Exception cause) {
-        log.error("Falha ao {} no BigQuery: {}.{}.{}", acao, projectId(), dataset(), table(), cause);
+        log.error("Falha ao {} no BigQuery: {}.{}.{}", acao, projectLabel(), dataset(), table(), cause);
         return new BusinessException(
                 "Não foi possível " + acao + " no BigQuery. Tente novamente em instantes.",
                 HttpStatus.BAD_GATEWAY,
                 ErrorCode.WAREHOUSE_ERROR);
+    }
+
+    /**
+     * Projeto para fins de mensagem, que nunca lança. Chamado de dentro de blocos de
+     * tratamento de erro, onde uma exceção nova esconderia a falha original.
+     */
+    private String projectLabel() {
+        try {
+            return projectId();
+        } catch (RuntimeException e) {
+            return "(projeto indefinido)";
+        }
     }
 }
