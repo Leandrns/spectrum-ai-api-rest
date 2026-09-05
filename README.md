@@ -735,6 +735,8 @@ Stack de produção: **Railway para a API** + **Supabase (free tier) para o Post
    | `GCS_EXPORT_BUCKET` | nome do bucket de exportações |
    | `GCP_PROJECT_ID` | id do projeto GCP |
    | `GCP_CREDENTIALS_JSON` | service account em base64 (passo 3) |
+   | `BQ_ENABLED` | `true` para ligar a ingestão no BigQuery (padrão `false`) |
+   | `BQ_DATASET` | dataset criado no GCP — padrão `spectrum_analytics` |
 
    > **Não adicione o plugin PostgreSQL do Railway.** O banco aqui é o Supabase, e o
    > plugin injeta uma variável `DATABASE_URL` própria no formato

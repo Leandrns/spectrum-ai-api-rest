@@ -116,7 +116,7 @@
         <dependency>
             <groupId>com.google.genai</groupId>
             <artifactId>google-genai</artifactId>
-            <version>1.0.0</version>
+            <version>1.70.0</version>
         </dependency>
 
         <!-- Google Cloud Storage (arquivos de exportacao CSV/PDF) -->
