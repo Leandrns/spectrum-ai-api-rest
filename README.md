@@ -56,7 +56,7 @@ Pronto. Abra http://localhost:8080/swagger-ui.html para explorar a API.
 
 ## Arquitetura
 
-![Arquitetura da solução — Spectrum AI](docs/arquitetura-soa-spectrum.png)
+![Arquitetura da solução — Spectrum AI](docs/arquitetura-soa-spectrum.svg)
 
 O app mobile fala com a API só por HTTPS/JSON. Dentro da API, a request passa por
 quatro camadas em sequência — **Segurança** (JWT + RBAC) → **Controllers** → **Services**
