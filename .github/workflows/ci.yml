@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Build & test
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: spectrum
+          POSTGRES_USER: spectrum
+          POSTGRES_PASSWORD: spectrum
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U spectrum -d spectrum"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      SPRING_PROFILES_ACTIVE: dev
+      DATABASE_URL: jdbc:postgresql://localhost:5432/spectrum
+      DATABASE_USER: spectrum
+      DATABASE_PASSWORD: spectrum
+      # Só para dev/CI — nunca reaproveitar em produção (lá o segredo real vem de env var no provedor de deploy).
+      JWT_SECRET: ci-only-jwt-secret-nunca-use-isso-em-producao-preencha-64-bytes-ok
+      GEMINI_API_KEY: ""
+      FIPE_API_TOKEN: ""
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Rodar testes (mvn test)
+        run: mvn --batch-mode --no-transfer-progress test
